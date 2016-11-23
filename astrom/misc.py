@@ -76,12 +76,12 @@ def rotate_coords(x,y,angle,rad = False,center=[0.,0.]):
     y += center[1]
     return x,y
     
-def get_catalogue_data(fn_source,mjd_obs=None):
+def get_catalogue_data(fn_source,mjd_source,mjd_obs=None,verbose=True,plot=True):
     #Reads the positions in RA and DEC from the catalogue given. if mjd is given it calculates
     #the current position based on the pm found in that catalogue
     
     #read in the coords and convert them
-    print('Converting coordinates. Assuming deg and mas/yr given in',fn_source,pm_ra,pm_dec)
+    if verbose: print('Converting coordinates. Assuming deg and mas/yr given in',fn_source,pm_ra,pm_dec)
     source = pd.read_csv(fn_source,delimiter =',')
     for ii in xrange(len(source[ra])):
         source[ra][ii] = dc.hmsToDeg(source[ra][ii].strip(), sep=' ')
@@ -114,14 +114,15 @@ def get_catalogue_data(fn_source,mjd_obs=None):
     source['ra_now_rot'],source['dec_now_rot'] = misc.rotate_coords(ra_now,dec_now,-rot_init,\
                                                                     center=[np.mean(ra_now),np.mean(dec_now)])
     #plot the result
-    plt.xlabel('RA [deg]')
-    plt.ylabel('DEC [deg]')
-    plt.scatter(source[ra],source[dec],label = 'Orig. Pos.',color='blue')
-    plt.scatter(source['ra_now'],source['dec_now'], color='red',label='With PM',alpha = 0.3)
-    plt.scatter(source['ra_now_rot'],source['dec_now_rot'], color='k',label='With PM and rotated',alpha = 0.3)
-    plt.legend()
-    plt.savefig(dir_out+'catalogue_stars.svg')
-    plt.close('all')
+    if plot:
+        plt.xlabel('RA [deg]')
+        plt.ylabel('DEC [deg]')
+        plt.scatter(source[ra],source[dec],label = 'Orig. Pos.',color='blue')
+        plt.scatter(source['ra_now'],source['dec_now'], color='red',label='With PM',alpha = 0.3)
+        plt.scatter(source['ra_now_rot'],source['dec_now_rot'], color='k',label='With PM and rotated',alpha = 0.3)
+        plt.legend()
+        plt.savefig(dir_out+'catalogue_stars.svg')
+        plt.close('all')
     
     return source
     
@@ -138,3 +139,37 @@ def weighted_avg_and_std(values, weights):
     average = np.average(values, weights=weights)
     variance = np.average((values-average)**2, weights=weights)  # Fast and numerically precise
     return (average, math.sqrt(variance))
+
+def get_headerparams(header,verbose=True):
+    targetname = header['OBJECT'].lower()
+    if 'trapezium' in targetname:
+        target = 'trapezium'
+    elif '47tuc' in targetname:
+        target = '47tuc'
+    else:
+        raise ValueError('Target ',targetname,' unknown. Please provide info for it.')
+    if 'apo_165' in header['Apodizer'].lower():
+        agpm=True
+    else:
+        agpm=False
+    mjd_obs=None
+    mjd_obs = header['MJD-OBS']
+    
+    if verbose: print('Found the following configuration:\n AGPM: %s \n target: %s \n mjd_obs: %s' \
+                      %(agpm,target,mjd_obs))
+    
+    return target,mjd_obs,agpm
+
+def get_filenames(target,agpm,verbose=True):
+    try: fn_sextr_med
+    except NameError: fn_sextr_med = dir_cat+target+'_median.sex'
+    try: fn_sextr_sgl
+    except NameError: fn_sextr_sgl = dir_cat+target+'_single.sex'
+    try: fn_source
+    except NameError: fn_source = dir_cat+target+'.csv'
+    try: mjd_source
+    except NameError:
+        if target == 'trapezium':
+            mjd_source = 55850.
+    if verbose: print('Using the following parameterfiles: \n sextractor median:%s \n sextractor single: %s \n source catalog: %s \n mjd of source cat: %s' %(fn_sextr_med,fn_sextr_sgl,fn_source,mjd_source))
+    return mjd_source,fn_sextr_med,fn_sextr_sgl,fn_source

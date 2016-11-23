@@ -1,3 +1,4 @@
+from __future__ import print_function,division
 import os
 from astropy.io import fits
 import numpy as np
@@ -6,7 +7,7 @@ import numpy as np
 #home_dir='/home/sbrems/Documents/NACO/astrometry/'
 
 
-def make_dirs(save_directories,delete_old=False):
+def make_dirs(save_directories,delete_old=False,verbose=True):
     #check if folders exist and create
     #save_directories = [dir_interm]
     for director in save_directories:
@@ -14,7 +15,7 @@ def make_dirs(save_directories,delete_old=False):
             os.makedirs(director)
     #check folders are empty and delete old files
     if delete_old:
-        print 'Deleting old output files!' 
+        if verbose: print('Deleting old output files!')
         for director in save_directories:
             for the_file in os.listdir(director):
                 file_path = os.path.join(director, the_file)
@@ -23,7 +24,7 @@ def make_dirs(save_directories,delete_old=False):
                 #elif os.path.isdir(file_path): shutil.rmtree(file_path) #del also subfolders
 
 
-def read_fits(directory):
+def read_fits(directory,verbose=True):
     '''This routine reads all fits files data into a big data cube and all header files
     into a big header cube. The order is the same and is alphabetically.Filenames and headers
     are multiple if it was an imagecube. So all have the same length. So it returns:
@@ -37,11 +38,12 @@ def read_fits(directory):
             form = fits.getdata(directory+file).shape
             if len(form) == 3 : #image cube
                 n_images += form[0]
+                if verbose: print('Found ',n_images+1,' frames in ',directory)
             elif len(form) == 2: #one image
                 n_images += 1
+                if verbose: print('Found ',n_images,' frames in ',directory)
             else:
                 raise ValueError('Fits file has unknown format!')
-    print('Found ',n_images,' frames in ',directory)
     
     #now make the array
     filenames = []

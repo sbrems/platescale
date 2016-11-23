@@ -1,5 +1,4 @@
-from __future__ import print_function
-from __future__ import division
+from __future__ import print_function,division
 import os
 import astrom
 import pandas as pd
@@ -16,7 +15,6 @@ from astrom import misc
 from astrom import sextract
 from astrom import psf_fitting
 from astrom import calc_platescale
-from collections import Counter
 import numpy as np
 from astropy.io import fits
 from astrom.parameters import *
@@ -25,7 +23,7 @@ import ipdb
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
-def do():
+def do(verbose=True,plot=True,delete_old=True):
     '''This code gives you the platescale of imgaes. It needs a file parameters.py which contains a number of parameters,
     of which the most important are the catalogue with the true star positions (and pm if available), aswell as the 
     initial guess of the platescale and the True nort.
@@ -43,53 +41,63 @@ def do():
     astrometry_grouped: grouped by the different combinations
     results: gives the final platescale    
     '''
-    dir_default = os.getcwd()
-    astrom.make_dirs([dir_out,dir_temp],delete_old=True)
-    filename_cube, data_cube, header_cube =  astrom.read_fits(dir_data)
 
+    dir_default = os.getcwd()+'/'
+    astrom.make_dirs([dir_out,dir_temp],delete_old=delete_old,verbose=verbose)
+    filename_cube, data_cube, header_cube =  astrom.read_fits(dir_data,verbose=verbose)
+    #determine some parameters from the fits files
+    target,mjd_obs,agpm = misc.get_headerparams(header_cube[0],verbose=verbose)
+    #determine more (standard) parameters as filenames (if None in parameters file)
+    mjd_source,fn_sextr_med,fn_sextr_sgl,fn_source = misc.get_filenames(target,agpm,verbose=verbose)
+        
     data_med = np.median(data_cube,axis=0)
     
-
-    #get the objects via sextractor. The output file is called objects.fits
-    os.chdir(dir_out)
-    if agpm:
-        fn_median ='median_'+target+'_agpm.fits'
-    else:
-        fn_median ='median_'+target+'.fits'
-    fits.writeto(fn_median,data_med,header_cube[0],output_verify = 'ignore')
-    call(['sex',fn_median,'-c',dir_data+'default.sex','-checkimage_name',target+'_median_objects.fits'])
-    data_objects_med = fits.getdata(target+'_median_objects.fits')
-    os.chdir(dir_default)
+    ###################################################
+    ####get the coordinates of the objects found ######
+    ####in the median and create the objects.fits######
+    ####file for the artificial map####################
+    median_sources,data_objects_med = sextract.coordinates(data_med,header_cube,target,
+                                                           fn_sextr_sgl,fn_sextr_med,
+                                                           med=True,verbose=verbose)
+    
     ###################################################
     ####create the source list#########################
     ###################################################
 
-    mjd_obs = header_cube[0]['MJD-OBS']
-    print(mjd_obs)
     #quick sanity check
     if header_cube[-1]['MJD-OBS'] - mjd_obs > 1:
         raise ValueError('Observations not from the same day:',mjd_obs, header_cube[-1]['MJD-OBS'])
-    source  = astrom.misc.get_catalogue_data(fn_source,mjd_obs=mjd_obs)
+    source_cat  = astrom.misc.get_catalogue_data(fn_source,mjd_source,mjd_obs=mjd_obs,
+                                                 verbose=verbose, plot=plot)
 
     ###################################################
     #####create an artificial map with the sources in##
-    #####and match the souces with the ones found by###
-    #####sectractor####################################
+    #####and match the sources with the ones found by###
+    #####sextractor####################################
     ###################################################
-    source  = astrom.plots.make_artificial_map(source,data_objects_med)
-
+    source_cat  = astrom.plots.make_artificial_map(source_cat,data_objects_med,
+                                                   verbose=verbose,plot=plot)
+    
+    #Only use the sources found in the median image further. Find them
+    source_med,ignored_med = astrom.analysis.connect_median_sources(source_cat,median_sources,
+                                                                    verbose=verbose)
+    #plot the median image with all the sources found and connected
+    if plot:
+        astrom.plots.median_stars(data_med,source_med,ignored_med,source_cat)
     ############################################
     ####sextract the sources####################
     ############################################
-    n_images = data_cube.shape[0]
-    sex_coords  = sextract.coordinates(data_cube,header_cube,target)
+
+    sex_coords  = sextract.coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,
+                                       med=False,verbose=verbose)
     
     #make a reference psf to use to center the stars
     psf_stars = psf_fitting.make_psf(data_cube,sex_coords, n_rms = 2, conv_gauss=conv_gauss, keepfr = keepfr)
     #find all targets via a ccmap and the psf just created)
-    #sex_coords_ccmap = psf_fitting.find_via_ccmap(data_cube,psf_stars)
-    #now refine the stellar positions with the new psf. old ones in x/y_image_sex column
-    sex_coords = psf_fitting.refine_fit(data_cube,psf_stars,sex_coords,conv_gauss=conv_gauss)
+    #sex_coords_ccmap = psf_fitting.find_via_ccmap(data_cube,psf_stars,target)
+    #refine the stellar positions with the new psf. old ones in x/y_image_sex column
+    sex_coords = psf_fitting.refine_fit(data_cube,psf_stars,sex_coords,conv_gauss=conv_gauss,
+                                        verbose=verbose)
     
     ############################################
     #now do the astrometry######################
@@ -97,55 +105,57 @@ def do():
     #connect the sextracted coordinates to the ones found in the catalogue. Also make some
     #sanity checks, e.g. more sources were found than in catalogue. remove those and save in
     #excluded
-    sex_coords, excluded, multiples = astrom.analysis.connect_sources(sex_coords,source,
-                                                                      n_images=n_images)
-
+    # sex_coords, excluded, multiples = astrom.analysis.connect_sources(sex_coords,source_med,
+    #                                                                   n_images=n_images)
+    #excluded is excluded full images pd frame. Ignored is a list with len of n_images containing
+    #single, ignored sources.i_ign im is a list whith the numbers of the ignored frames as they
+    #are f.e. in data_cube
+    sex_coords, excluded, ignored, nr_ign_im = astrom.analysis.compare_to_med(sex_coords,source_med,
+                                                                              ignored_med,
+                                                                              verbose=verbose)
+    
     #########################################################
     #do the statistics. e.g. measure all the distances#######
     #########################################################
 
     os.chdir(dir_out)
     #in astrometry the single distances/angles between all possible combinations are saved.
-    #in results these will be grouped
-    astrometry = astrom.calc_platescale.single_matches(data_cube,sex_coords,
-                                             n_images=n_images)
+    #main_id1 is the one coming first in the alphabet
+    #in results these will be grouped.
+    astrometry = astrom.calc_platescale.single_matches(data_cube,sex_coords,nr_ign_im,
+                                                       verbose=verbose,plot=plot)
 
     ################################################################
     #now combine all measurements that have the same start and end##
     ################################################################
     
     astrometry_grouped, astrometry_grouped_cliped, results = astrom.calc_platescale.multiple_matches(astrometry,sigma_outliers)
-
-
-    #now ignore the star completely where the fraction of bad scales was higher than ignore_frac            pd.DataFrame([len(results_entries)*[np.nan]],columns=results_entries)                                      
-    #stars_found = list(set(astrometry_grouped[star_id+'1']+astrometry_grouped[star_id+'2']))                                                    
-    connections_tot = Counter(dict(astrometry_grouped.groupby(star_id+'1').size())) +\
-                      Counter(dict(astrometry_grouped.groupby(star_id+'2').size()))
-    connections_good = Counter(dict(astrometry_grouped_cliped.groupby(star_id+'1').size())) +\
-                       Counter(dict(astrometry_grouped_cliped.groupby(star_id+'2').size()))
-    astrometry_good = astrometry_grouped
-    stars_removed = []
-    for star in connections_tot.keys():
-        if connections_good[star]/connections_tot[star] < ignore_frac:
-            print('Removing all measurements of star ',star, ' as it only had ', connections_good[star],\
-                  ' of ',connections_tot[star],' good measurements. This is worse than ignore_frac=',ignore_frac )
-            stars_removed.append(star)
-            astrometry_good = astrometry_good[astrometry_good[star_id+'1'] != star]
-            astrometry_good = astrometry_good[astrometry_good[star_id+'2'] != star]
-
+    
+    if plot:
+        #make some plots about the statistics
+        astrom.plots.distance_distributions(astrometry,astrometry_grouped)
+    #now ignore the star completely where the fraction of bad scales was higher than ignore_frac 
+    astrometry_good=astrom.calc_platescale.ignore_stars_bad_connections(astrometry_grouped,
+                                                                        astrometry_grouped_cliped,
+                                                                        verbose=verbose)
+    #pd.DataFrame([len(results_entries)*[np.nan]],columns=results_entries)     
+    #stars_found = list(set(astrometry_grouped[star_id+'1']+astrometry_grouped[star_id+'2']))    
+    
 
     
     print('The final pixel_scale and true north are:\n',results)
     os.chdir(dir_out)
+ 
     #save the results
     astrometry.to_csv('astrometry.csv',index=False)
     results.to_csv('results.csv',index=False)
 
         
-    #compare to andres results
-    andre=np.array([[614.463,548.146,556.571,527.867,412.971],[565.113,426.196,578.740,468.201,588.342]])
+
     
     if False:
+        #compare to andres results
+        andre=np.array([[614.463,548.146,556.571,527.867,412.971],[565.113,426.196,578.740,468.201,588.342]])
         #only for trap_med
         sex_coords[0]['x_andre'] = andre[0]
         sex_coords[0]['y_andre'] = andre[1]
@@ -173,4 +183,6 @@ def do():
 
         plt.savefig(dir_temp+'found_sources_1.svg')
     print('Finished platescale.py successfully!')
+   
     ipdb.set_trace()
+    return results[['pxscl_rob_weighted','pxscl_rob_weighted_err','rot_rob_weighted','rot_rob_weighted_err']]

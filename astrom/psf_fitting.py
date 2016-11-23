@@ -1,5 +1,4 @@
-from __future__ import print_function
-from __future__ import division
+from __future__ import print_function,division
 import numpy as np
 import pandas as pd
 from astropy.io import fits
@@ -21,7 +20,7 @@ import subprocess
 
 import ipdb
 
-def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,verbose=False):
+def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,verbose=True):
     '''Makes a psf out of the stars in the images found by fitting and median combining them.n_rms
     gives the image size in rms of the ellipse parameter of the brightest star found by sextractor 
     to which the images are cropped.'''
@@ -56,12 +55,15 @@ def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,verbose=Fal
     shifts[0,:] = (0,0)
     
     del brightest_star
-
+    
     #now cut out the other stars
-    n_star_tot = 1 #already have the ref-star
+    i_star_tot = 1 #already have the ref-star
+    max_shift = 5
+    n_removed_stars = 0 #count stars could not be fit properly
     for i_image in range(n_images):
         if verbose: print('Getting PSF for image ',i_image+1,' of ',n_images)
         for i_star in range(len(sex_coords[i_image])):
+            use_star = False #set to true if fitting worked. otherwise dont use the star
             if i_image != 0 or i_star != i_max:
                 x_cen = int(round(sex_coords[i_image]['x_image'][i_star]))
                 y_cen = int(round(sex_coords[i_image]['y_image'][i_star]))
@@ -69,48 +71,60 @@ def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,verbose=Fal
                                      y_cen - size:y_cen + size,
                                      x_cen - size:x_cen + size].copy()
                 if conv_gauss:
-                    shifts[n_star_tot,:] = find_shift(data_stars[0,:,:],cut_star,n_rms=n_rms,
-                                                      plotname='aligned_to_psf_'+'{:03}'.format(n_star_tot)+'.svg')[0]
+                    shifts[i_star_tot,:] = find_shift(data_stars[0,:,:],cut_star,n_rms=n_rms,
+                                                      plotname='aligned_to_psf_'+'{:03}'.format(i_star_tot)+'.svg')[0]
                 else:
-                    shifts[n_star_tot,:] = find_shift_upsampling(data_stars[0,:,:],cut_star)[0]
-                #now shift the image star region +-5px and cut the star dont shift whole image cause
-                #fft_shift can't treat nans
-                shifted_data = fft_shift(data_cube[i_image,
-                                                   y_cen - size-5:y_cen + size+5,
-                                                   x_cen - size-5:x_cen + size+5],
-                                         shifts[n_star_tot][1],shifts[n_star_tot][0])[5:-5,5:-5]
-                #check if only infs are left
-                if np.count_nonzero(np.isnan(shifted_data)) == shifted_data.size:
-                    raise ValueError('Only nan array detected when shifting image at make psf!')
-                data_stars[n_star_tot,:,:] = (data_stars[0].max() /shifted_data.max()) * shifted_data
-            
                 
-                n_star_tot += 1
+                    found_shift = find_shift_upsampling(data_stars[0,:,:],cut_star,
+                                                        max_shift=max_shift,try_smaller_fov=False)[0]
+                    if np.sqrt(found_shift[0]**2 + found_shift[1]**2) > max_shift :
+                        #ignore the star
+                        use_star = False
+                    else:
+                        shifts[i_star_tot,:] = found_shift
+                        use_star = True                    
+                #shift the image star region +-5px and cut the star dont shift whole image cause
+                #fft_shift can't treat nans
+                if use_star:
+                    shifted_data = fft_shift(data_cube[i_image,
+                                                       y_cen - size-5:y_cen + size+5,
+                                                       x_cen - size-5:x_cen + size+5],
+                                             shifts[i_star_tot][1],shifts[i_star_tot][0])[5:-5,5:-5]
+                    #check if only infs are left
+                    if np.count_nonzero(np.isnan(shifted_data)) == shifted_data.size:
+                        raise ValueError('Only nan array detected when shifting image at make psf!')
+                    data_stars[i_star_tot,:,:] = (data_stars[0].max() /shifted_data.max()) * shifted_data
+            
+                    i_star_tot += 1
+                else:
+                    n_removed_stars += 1
+                    shifts = np.delete(shifts,i_star_tot,0)
+                    data_stars = np.delete(data_stars,i_star_tot,0)
+                    n_stars -= 1
     #scale up all to the same brightness
     pix_max = np.float64(np.nanmax(data_stars))
-    for i_star in range(n_star_tot):
+    for i_star in range(n_stars):
         data_stars[i_star] *= pix_max / np.max(data_stars[i_star])
     first_med = np.median(data_stars,axis=0)
 
     ###########################################################################################
     ############Only keep keepfr of the images with the least residuals to the median######
     ###########################################################################################
-    residuals = np.full((n_star_tot),np.nan)
-    for i_star in range(n_star_tot):
+    residuals = np.full((n_stars),np.nan)
+    for i_star in range(n_stars):
         residuals[i_star] = np.sum((data_stars[i_star]-first_med)**2)
     
     sorted_resid = np.argsort(residuals)
-    selected_resid = sorted_resid[0:int(round(keepfr*n_star_tot))]
+    selected_resid = sorted_resid[0:int(round(keepfr*n_stars))]
     selected_stars = data_stars[selected_resid,:,:]
     
     second_med = np.median(selected_stars,axis=0)
 
     fits.writeto(dir_temp+'psf_cube_w_median.fits',np.concatenate((data_stars,[first_med]),axis=0))
     fits.writeto(dir_temp+'psf_cube_selected_w_median.fits',np.concatenate((selected_stars,[second_med]),axis=0))
-
     return second_med
             
-def refine_fit(data_cube,data_psf,sex_coords,conv_gauss = True,verbose=False):
+def refine_fit(data_cube,data_psf,sex_coords,conv_gauss = True,verbose=True):
     '''Resets the x_image and y_image from sextractor. Use convolution with gaussian fitting
     if conv_gauss==True. Else use upsampling and find the max of crosscorrelation.
     Sex coords has to be a list of pandas data frames.'''
@@ -234,27 +248,29 @@ def find_shift(ref_frame,shift_frame,plotname=None, n_rms=2, convolve=True):
 
 
 #shift_detection with register_translation
-def find_shift_upsampling(ref_frame,shift_frame,max_shift = 5):
+def find_shift_upsampling(ref_frame,shift_frame,max_shift = 5,try_smaller_fov=True):
     #make images non-negative. There seems to be a bug else
     ref_frame -= np.min(ref_frame)
     shift_frame -= np.min(shift_frame)
     res,perr = skimage.feature.register_translation(ref_frame,shift_frame,
-                                                    upsample_factor=100,space='real')[0:2]
+                                                    upsample_factor=30,space='real')[0:2]
     res = res[::-1]
     #if shift too big, downscale shift_frame
-    if math.sqrt(math.pow(res[0],2)+math.pow(res[1],2)) >= max_shift:
-        print('Shift was considered too big. Use max of crosscorr:', res)
+    if (math.sqrt(math.pow(res[0],2)+math.pow(res[1],2)) >= max_shift) & (try_smaller_fov):
+        print('Shift of %s considered too big. Trying smaller FoV now.' %(res))
         quarter_size= int(round(shift_frame.shape[0]/4))
-        shift_frame = shift_frame[quarter_size : -quarter_size,
+        shift_frame_q = shift_frame[quarter_size : -quarter_size,
                                  quarter_size : -quarter_size]
-        ref_frame   =   ref_frame[quarter_size : -quarter_size,
+        ref_frame_q   =   ref_frame[quarter_size : -quarter_size,
                                   quarter_size : -quarter_size]
-        res,perr = skimage.feature.register_translation(ref_frame,shift_frame,
+        res,perr = skimage.feature.register_translation(ref_frame_q,shift_frame_q,
                                                         upsample_factor=20,space='real')[0:2]
         res=res[::-1]
-        print('Shift now:', res)
         if math.sqrt(math.pow(res[0],2)+math.pow(res[1],2)) >= max_shift:
-            print('Shift still too big...maybe try with gaussian?')
+            raise ValueError('Shift of %s still too big...maybe try with gaussian?' %(res))
+        else:
+            print('That worked. Shift now:',res)
+            
     return res,perr
     
 
@@ -293,7 +309,7 @@ def fft_shift(in_frame, dx, dy):
 
 	return np.real(fftpack.ifft2(f_frame))
 
-def find_via_ccmap(data_cube,psf):
+def find_via_ccmap(data_cube,psf,target):
     print('Finding sources via ccmap. This should exclude fake multiples.')
     if len(data_cube.shape) == 3:
         n_images = data_cube.shape[0]
