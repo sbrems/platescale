@@ -46,9 +46,11 @@ def do(verbose=True,plot=True,delete_old=True):
     astrom.make_dirs([dir_out,dir_temp],delete_old=delete_old,verbose=verbose)
     filename_cube, data_cube, header_cube =  astrom.read_fits(dir_data,verbose=verbose)
     #determine some parameters from the fits files
-    target,mjd_obs,agpm = misc.get_headerparams(header_cube[0],verbose=verbose)
+    target,mjd_obs,agpm,coord_head = misc.get_headerparams(header_cube[0],verbose=verbose)
     #determine more (standard) parameters as filenames (if None in parameters file)
-    mjd_source,fn_sextr_med,fn_sextr_sgl,fn_source = misc.get_filenames(target,agpm,verbose=verbose)
+    mjd_source,fn_sextr_med,fn_sextr_sgl,fn_source = misc.get_catfiles(target,agpm,
+                                                                        dir_cat,dir_temp,
+                                                                        verbose=verbose)
         
     data_med = np.median(data_cube,axis=0)
     
@@ -67,7 +69,7 @@ def do(verbose=True,plot=True,delete_old=True):
     #quick sanity check
     if header_cube[-1]['MJD-OBS'] - mjd_obs > 1:
         raise ValueError('Observations not from the same day:',mjd_obs, header_cube[-1]['MJD-OBS'])
-    source_cat  = astrom.misc.get_catalogue_data(fn_source,mjd_source,mjd_obs=mjd_obs,
+    source_cat  = astrom.misc.get_catalogue_data(fn_source,mjd_source,coord_head,mjd_obs=mjd_obs,
                                                  verbose=verbose, plot=plot)
 
     ###################################################
@@ -76,7 +78,7 @@ def do(verbose=True,plot=True,delete_old=True):
     #####sextractor####################################
     ###################################################
     source_cat  = astrom.plots.make_artificial_map(source_cat,data_objects_med,
-                                                   verbose=verbose,plot=plot)
+                                                   verbose=verbose,plot=plot,use_mags=True)
     
     #Only use the sources found in the median image further. Find them
     source_med,ignored_med = astrom.analysis.connect_median_sources(source_cat,median_sources,
@@ -90,9 +92,11 @@ def do(verbose=True,plot=True,delete_old=True):
 
     sex_coords  = sextract.coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,
                                        med=False,verbose=verbose)
-    
+    psf_med = psf_fitting.make_psf(np.array([data_med]),[source_med],fn_out = 'med_cube',keepfr=0.9)
+    source_med = psf_fitting.refine_fit(np.array([data_med]),psf_med,[source_med],
+                                        conv_gauss=conv_gauss,verbose=verbose)[0]
     #make a reference psf to use to center the stars
-    psf_stars = psf_fitting.make_psf(data_cube,sex_coords, n_rms = 2, conv_gauss=conv_gauss, keepfr = keepfr)
+    psf_stars = psf_fitting.make_psf(data_cube,sex_coords, n_rms = 2, conv_gauss=conv_gauss, keepfr = keepfr,fn_out='psf_cube')
     #find all targets via a ccmap and the psf just created)
     #sex_coords_ccmap = psf_fitting.find_via_ccmap(data_cube,psf_stars,target)
     #refine the stellar positions with the new psf. old ones in x/y_image_sex column
@@ -124,7 +128,6 @@ def do(verbose=True,plot=True,delete_old=True):
     #in results these will be grouped.
     astrometry = astrom.calc_platescale.single_matches(data_cube,sex_coords,nr_ign_im,
                                                        verbose=verbose,plot=plot)
-
     ################################################################
     #now combine all measurements that have the same start and end##
     ################################################################

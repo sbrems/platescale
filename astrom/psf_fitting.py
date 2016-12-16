@@ -20,7 +20,7 @@ import subprocess
 
 import ipdb
 
-def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,verbose=True):
+def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,fn_out='psf_cube',verbose=True):
     '''Makes a psf out of the stars in the images found by fitting and median combining them.n_rms
     gives the image size in rms of the ellipse parameter of the brightest star found by sextractor 
     to which the images are cropped.'''
@@ -30,10 +30,11 @@ def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,verbose=Tru
     n_stars = 0
     for i_image in range(n_images):
         n_stars += len(sex_coords[i_image])
+        sex_coords[i_image].reset_index(inplace=True)
 
     i_max = sex_coords[0]['mag_auto'].idxmin()
     #get rms (fwhm/2) for 4micron at 8m telescope
-    size = 1.44*4e-6 /8.4 /math.pi*360*3600*1000/pxscl_init/2
+    size = 1.44*4e-6 /8.4 /math.pi*360*3600*1000/pxscl_init/2.
 #uncomment for sextractor values
 #    size = int(round(n_rms* math.sqrt(math.pow(sex_coords[0]['rms_A_image'][i_max],2) +\
 #                                      math.pow(sex_coords[0]['rms_B_image'][i_max],2))))
@@ -120,8 +121,8 @@ def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,verbose=Tru
     
     second_med = np.median(selected_stars,axis=0)
 
-    fits.writeto(dir_temp+'psf_cube_w_median.fits',np.concatenate((data_stars,[first_med]),axis=0))
-    fits.writeto(dir_temp+'psf_cube_selected_w_median.fits',np.concatenate((selected_stars,[second_med]),axis=0))
+    fits.writeto(dir_temp+fn_out+'_w_median.fits',np.concatenate((data_stars,[first_med]),axis=0))
+    fits.writeto(dir_temp+fn_out+'_selected_w_median.fits',np.concatenate((selected_stars,[second_med]),axis=0))
     return second_med
             
 def refine_fit(data_cube,data_psf,sex_coords,conv_gauss = True,verbose=True):

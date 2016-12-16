@@ -1,5 +1,4 @@
-from __future__ import print_function
-from __future__ import division
+from __future__ import print_function,division
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -11,7 +10,7 @@ import misc
 
 def single_matches(data_cube,sex_coords,nr_ign_im,verbose=True,plot=True):
     '''plotting the single matches and doing some sorting in the pd.DataFrames (the astrometry one)'''
-   
+
     if verbose: print('Plotting and solving platescale for', len(sex_coords),' images')
     entries = [star_id+'1',star_id+'2','dis_cat_mas','dis_meas','shift_error','ang_cat','ang_meas','platescale','ang_diff','image_nr'] 
     astrometry = pd.DataFrame(columns=entries)
@@ -85,7 +84,7 @@ def single_matches(data_cube,sex_coords,nr_ign_im,verbose=True,plot=True):
                 
                 im_matched.legend((scat_cat,scat_sex),('Catalogue','Found position'),loc='lower left')
             plt.savefig('found_sources_'+'{:03}'.format(i_im_tot)+'.svg')
-            plt.close('all')
+            #plt.close('all')
         
         i_im_tot += 1
     #sort the entries in astrometry alphabetically

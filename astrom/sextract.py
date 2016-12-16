@@ -20,7 +20,7 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
     If med=True, doing the same with different output names 
     (_med instead of _{image_number}) and returning also the med image'''
 
-    os.chdir(dir_out)
+    os.chdir(dir_temp)
     FNULL = open(os.devnull,'w') #suppress output
     if not med:
         n_images = data_cube.shape[0]
@@ -32,7 +32,6 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
                   '-catalog_name',dir_temp+target+'_'+'{:03}'.format(kk)+'.sex'],stdout=FNULL,
                  stderr=subprocess.STDOUT)
             call(['rm','temp.fits'])
-        os.chdir(dir_temp)
         all_objects = np.full(data_cube.shape, np.nan)
         sex_coords = [None] * n_images
         for kk in range(n_images):
@@ -54,9 +53,9 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
               '-checkimage_name',dir_temp+target+'_objects_med.fits',
               '-catalog_name',dir_temp+target+'_med.sex'],stdout=FNULL,
              stderr=subprocess.STDOUT)
+
         call(['rm','temp.fits'])
         #now that we have all data in files, read it in
-        os.chdir(dir_temp)
         all_objects = np.full(data_cube.shape, np.nan)
         sex_coords = [None]
         all_objects = fits.getdata(dir_temp+target+'_objects_med.fits')
@@ -65,6 +64,7 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
                                 names=('mag_auto','x_image','y_image','rms_A_image','rms_B_image'),
                                 dtype={'x_image':np.float64,'y_image':np.float64},
                                 skip_blank_lines = True)
+        sex_coords = sex_coords.sort_values(by='mag_auto').reset_index(drop=True)
         #subtract 1 as sextractor starts at (1,1) and not (0,0)
         sex_coords['x_image'] -= 1
         sex_coords['y_image'] -= 1

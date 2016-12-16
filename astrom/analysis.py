@@ -16,6 +16,7 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
     if verbose: print('Connecting stars to stars in median image for ',n_images,' images.')
     ign_im = []
     ignored=[]
+    
     for i_im in range(n_images):
         idz_src = np.array(sex_coords[i_im].index.values)
         idz_med = np.array(source_med.index.values)
@@ -206,6 +207,7 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
     and find the one with the minimum distance between all.Also return the ones where
     no counterpart in catalogue was found.'''
     if verbose: print('Finding the sources in the catalogue')
+    
     idz_cat = np.array(source_cat.index.values)
     idz_med = np.array(median_sources.index.values)
     med_ignore = [] #for sources found in image but not in catologue
@@ -218,6 +220,7 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
                               (source_cat.y_data_rot[i_cat] - median_sources.y_image[i_med])**2)
                 if dist < search_rad:
                     id_cat.append(i_cat)
+
             if len(id_cat) == 0: #no source in cat found:
                 if verbose:
                     print('WARNING!There has been no source in the catalogue nearby '+

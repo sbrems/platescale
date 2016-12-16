@@ -1,10 +1,10 @@
-from __future__ import print_function
-from __future__ import division
+from __future__ import print_function,division
 import numpy as np
 import matplotlib.pyplot as plt
 import math
 from parameters import *
 import dd_dec_converter as dc
+from shutil import copy2
 from astropy.coordinates import SkyCoord
 import pandas as pd
 import misc
@@ -76,21 +76,46 @@ def rotate_coords(x,y,angle,rad = False,center=[0.,0.]):
     y += center[1]
     return x,y
     
-def get_catalogue_data(fn_source,mjd_source,mjd_obs=None,verbose=True,plot=True):
+def get_catalogue_data(fn_source,mjd_source,coord_head,mjd_obs=None,verbose=True,plot=True):
     #Reads the positions in RA and DEC from the catalogue given. if mjd is given it calculates
     #the current position based on the pm found in that catalogue
     
     #read in the coords and convert them
-    if verbose: print('Converting coordinates. Assuming deg and mas/yr given in',fn_source,pm_ra,pm_dec)
+    if verbose: print('Converting coordinates. Assuming hmsdms and mas/yr given in',fn_source,pm_ra,pm_dec)
     source = pd.read_csv(fn_source,delimiter =',')
+    for numeric in [mag,pm_ra,pm_dec]:#convert to floats
+        source[numeric] = pd.to_numeric(source[numeric],errors='coerce')
+    rem_coord = []
+
+    if len(str(source[ra][00]).strip().split(' ')) == 3: #assuming hms/dms
+        if verbose: print('Converting coordinates. Assuming hms/dms and mas/yr given in',fn_source,pm_ra,pm_dec)
+        coord_fmt = 'hmsdms'
+    else: #assuming deg
+        if verbose: print('Converting coordinates. Assuming deg and mas/yr given in',fn_source,pm_ra,pm_dec) 
+        coord_fmt = 'deg'
     for ii in xrange(len(source[ra])):
-        source[ra][ii] = dc.hmsToDeg(source[ra][ii].strip(), sep=' ')
-        source[dec][ii]= dc.dmsToDeg(source[dec][ii].strip(),sep=' ')
+        if coord_fmt == 'hmsdms':
+            coord_dum = SkyCoord(dc.hmsToDeg(source[ra][ii].strip(), sep=' '), \
+                                 dc.dmsToDeg(source[dec][ii].strip(),sep=' '), \
+                                 frame='icrs',unit='deg')
+        elif coord_fmt == 'deg':
+            coord_dum = SkyCoord(source[ra][ii],source[dec][ii],frame='icrs',unit='deg')
+        else: raise ValueError('Unknown coordinate format. Use hmsdms with space separation or deg')
+
+        if coord_head.separation(coord_dum).arcsec <= query_around_head_coord:
+            source[ra][ii] = coord_dum.ra.deg
+            source[dec][ii]= coord_dum.dec.deg
+        else: 
+            rem_coord.append(ii)
+                    
+    source = source.drop(rem_coord)
+    source.reset_index(inplace=True)
+    
 
     #check for validity of mjd_obs and set to source date (zero pm) if none is given
     if mjd_obs != None:
-        if mjd_obs <= 57400 or mjd_obs >= 65000:
-            raise ValueError('mjd of ',mjd,' smaller than 57400! This should not be the case for ISPY')
+        if mjd_obs <= 57300 or mjd_obs >= 65000:
+            raise ValueError('mjd of ',mjd_obs,' smaller than 57300! This should not be the case for ISPY')
     else:
         mjd_obs = mjd_source
     
@@ -111,15 +136,15 @@ def get_catalogue_data(fn_source,mjd_source,mjd_obs=None,verbose=True,plot=True)
     dec_now= np.array(dec_now)
     source['ra_now'] = ra_now
     source['dec_now']= dec_now
-    source['ra_now_rot'],source['dec_now_rot'] = misc.rotate_coords(ra_now,dec_now,-rot_init,\
-                                                                    center=[np.mean(ra_now),np.mean(dec_now)])
+#    source['ra_now_rot'],source['dec_now_rot'] = misc.rotate_coords(ra_now,dec_now,-rot_init,\
+#                                                    center=[np.mean(ra_now),np.mean(dec_now)])
     #plot the result
     if plot:
         plt.xlabel('RA [deg]')
         plt.ylabel('DEC [deg]')
         plt.scatter(source[ra],source[dec],label = 'Orig. Pos.',color='blue')
         plt.scatter(source['ra_now'],source['dec_now'], color='red',label='With PM',alpha = 0.3)
-        plt.scatter(source['ra_now_rot'],source['dec_now_rot'], color='k',label='With PM and rotated',alpha = 0.3)
+       # plt.scatter(source['ra_now_rot'],source['dec_now_rot'], color='k',label='With PM and rotated',alpha = 0.3)
         plt.legend()
         plt.savefig(dir_out+'catalogue_stars.svg')
         plt.close('all')
@@ -142,12 +167,18 @@ def weighted_avg_and_std(values, weights):
 
 def get_headerparams(header,verbose=True):
     targetname = header['OBJECT'].lower()
-    if 'trapezium' in targetname:
-        target = 'trapezium'
-    elif '47tuc' in targetname:
-        target = '47tuc'
-    else:
-        raise ValueError('Target ',targetname,' unknown. Please provide info for it.')
+    target = None
+    coord_head = SkyCoord(header['CRVAL1'],header['CRVAL2'],'icrs',unit='deg')
+    while target == None:
+        if ('trapezium' in targetname) or (coord_head.separation(coord_trapez).arcsec < 30) :
+            target = 'trapezium'
+        elif ('47tuc' in targetname) \
+             or (coord_head.separation(coord_47tuc_sphere).arcsec < 30)\
+             or (coord_head.separation(coord_47tuc_wolfgang).arcsec < 30):
+            target = '47tuc'
+        else:
+            print('ATTENTION!!! Target <',targetname,'> unknown. Please type trapezium or 47tuc .')
+            targetname = str(raw_input())
     if 'apo_165' in header['Apodizer'].lower():
         agpm=True
     else:
@@ -158,11 +189,11 @@ def get_headerparams(header,verbose=True):
     if verbose: print('Found the following configuration:\n AGPM: %s \n target: %s \n mjd_obs: %s' \
                       %(agpm,target,mjd_obs))
     
-    return target,mjd_obs,agpm
+    return target,mjd_obs,agpm,coord_head
 
-def get_filenames(target,agpm,verbose=True):
+def get_catfiles(target,agpm,dir_cat,dir_temp,verbose=True):
     try: fn_sextr_med
-    except NameError: fn_sextr_med = dir_cat+target+'_median.sex'
+    except NameError: fn_sextr_med = dir_cat+target+'_med.sex'
     try: fn_sextr_sgl
     except NameError: fn_sextr_sgl = dir_cat+target+'_single.sex'
     try: fn_source
@@ -171,5 +202,11 @@ def get_filenames(target,agpm,verbose=True):
     except NameError:
         if target == 'trapezium':
             mjd_source = 55850.
-    if verbose: print('Using the following parameterfiles: \n sextractor median:%s \n sextractor single: %s \n source catalog: %s \n mjd of source cat: %s' %(fn_sextr_med,fn_sextr_sgl,fn_source,mjd_source))
+        if target == '47tuc':
+            mjd_source = 52369.5
+    if verbose: print('Using and copying the following parameterfiles: \n sextractor median:%s \n sextractor single: %s \n source catalog: %s \n mjd of source cat: %s' %(fn_sextr_med,fn_sextr_sgl,fn_source,mjd_source))
+    for fn in [fn_sextr_med,fn_sextr_sgl,fn_source]:
+        copy2(fn,dir_temp+os.path.basename(fn))
+        fn = os.path.basename(fn)
+    copy2(dir_cat+'sex.param',dir_temp+'sex.param')
     return mjd_source,fn_sextr_med,fn_sextr_sgl,fn_source
