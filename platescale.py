@@ -23,7 +23,7 @@ import ipdb
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
-def do(verbose=True,plot=True,delete_old=True):
+def do(verbose=True,plot=True,delete_old=True,use_mags=True):
     '''This code gives you the platescale of imgaes. It needs a file parameters.py which contains a number of parameters,
     of which the most important are the catalogue with the true star positions (and pm if available), aswell as the 
     initial guess of the platescale and the True nort.
@@ -46,7 +46,7 @@ def do(verbose=True,plot=True,delete_old=True):
     astrom.make_dirs([dir_out,dir_temp],delete_old=delete_old,verbose=verbose)
     filename_cube, data_cube, header_cube =  astrom.read_fits(dir_data,verbose=verbose)
     #determine some parameters from the fits files
-    target,mjd_obs,agpm,coord_head = misc.get_headerparams(header_cube[0],verbose=verbose)
+    target,mjd_obs,agpm,coord_head,rot_header = misc.get_headerparams(header_cube[0],verbose=verbose)
     #determine more (standard) parameters as filenames (if None in parameters file)
     mjd_source,fn_sextr_med,fn_sextr_sgl,fn_source = misc.get_catfiles(target,agpm,
                                                                         dir_cat,dir_temp,
@@ -77,8 +77,9 @@ def do(verbose=True,plot=True,delete_old=True):
     #####and match the sources with the ones found by###
     #####sextractor####################################
     ###################################################
-    source_cat  = astrom.plots.make_artificial_map(source_cat,data_objects_med,
-                                                   verbose=verbose,plot=plot,use_mags=True)
+
+    source_cat  = astrom.plots.make_artificial_map(source_cat,data_objects_med,rot_header,
+                                                   verbose=verbose,plot=plot,use_mags=use_mags)
     
     #Only use the sources found in the median image further. Find them
     source_med,ignored_med = astrom.analysis.connect_median_sources(source_cat,median_sources,

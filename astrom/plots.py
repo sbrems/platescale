@@ -7,45 +7,53 @@ from scipy import signal
 from astropy.io import fits
 import pandas as pd
 import misc
-from parameters import *
+from parameters import pxscl_init,fwhm,mag,star_id,dir_out,rot_offset_guess
 
 
-def make_artificial_map(source,data_objects,verbose=True,plot=True,use_mags =True):
+def make_artificial_map(source,data_objects,rot_header,verbose=True,plot=True,use_mags =True):
     '''creates an artificial map with the sources in it'''
     print('Matching the sources...')
-    offset = 3*fwhm
+    rot_init = rot_header+rot_offset_guess
+    offset = 10*fwhm
     degtopix = 60*60*1000/pxscl_init
     ra_min = min(source['ra_now'])
     dec_min= min(source['dec_now'])
-    x_dim = int(round((max(source['ra_now'])-ra_min) *np.cos(dec_min*np.pi/180.)*  degtopix + 2*offset))
-    y_dim = int(round((max(source['dec_now'])-dec_min)* degtopix + 2*offset))
+    x_dim = max(int(round((max(source['ra_now'])-ra_min) *np.cos(dec_min*np.pi/180.)*  degtopix + 2*offset)),
+                int(round((max(source['dec_now'])-dec_min)* degtopix + 2*offset)) )
+    y_dim = x_dim
     source_map = np.zeros((y_dim,x_dim))
     gauss =misc.makeGaussian(3*fwhm,fwhm = fwhm,center = None)
     #gauss = np.array([[1,]])
     
-    #put the gaussian to the coordinates. Scale with mag in logspace. Real fluxes would overkill.
-    x_im =[]
-    y_im =[]
-    for ii in range(len(source['ra_now_rot'])):
-        x = offset + (source['ra_now_rot'][ii] - ra_min) * np.cos(source['dec_now_rot'][ii]*np.pi/180.)* degtopix
-        y = offset + (source['dec_now_rot'][ii]- dec_min)* degtopix
+    #put the gaussian to the coordinates. Scale with mag in logspace. Real fluxes would only match the brightest source.
+    x_im = []
+    y_im = []
+    x_im_rot =[]
+    y_im_rot =[]
+    for ii in range(len(source['ra_now'])):
+        x = offset + (source['ra_now'][ii] - ra_min) * np.cos(source['dec_now'][ii]*np.pi/180.)* degtopix
+        y = offset + (source['dec_now'][ii]- dec_min)* degtopix
+        x_rot, y_rot = misc.rotate_coords(x,y,-rot_init,center=[int(x_dim/2.),int(y_dim/2.)])
+
         x_im.append(x)
         y_im.append(y)
+        x_im_rot.append(x_rot)
+        y_im_rot.append(y_rot)
         if use_mags and np.isfinite(source[mag][ii]):
-                source_map[int(y-np.floor(0.5*gauss.shape[0])):int(y+np.ceil(0.5*gauss.shape[0])),
-                           int(x-np.floor(0.5*gauss.shape[1])):int(x+np.ceil(0.5*gauss.shape[1]))] +=\
-                gauss*np.sqrt(10.**( (max(source[mag])-source[mag][ii]) / 2.5 ))
+                source_map[int(y_rot-np.floor(0.5*gauss.shape[0])):int(y_rot+np.ceil(0.5*gauss.shape[0])),
+                           int(x_rot-np.floor(0.5*gauss.shape[1])):int(x_rot+np.ceil(0.5*gauss.shape[1]))] +=\
+                np.array(gauss * (10.**( (max(source[mag])-source[mag][ii]) / 2.5 )) )
                 #gauss*(max(source[mag]+1-source[mag][ii]))
         else:
-            source_map[int(y-np.floor(0.5*gauss.shape[0])):int(y+np.ceil(0.5*gauss.shape[0])),
-                       int(x-np.floor(0.5*gauss.shape[1])):int(x+np.ceil(0.5*gauss.shape[1]))] +=\
+            source_map[int(y_rot-np.floor(0.5*gauss.shape[0])):int(y_rot+np.ceil(0.5*gauss.shape[0])),
+                       int(x_rot-np.floor(0.5*gauss.shape[1])):int(x_rot+np.ceil(0.5*gauss.shape[1]))] +=\
                     gauss*1
-    source['x_im_rot']=x_im
-    source['y_im_rot']=y_im
+    source['x_im_rot']=x_im_rot
+    source['y_im_rot']=y_im_rot
     #flip in right direction to align with image and rotate it
     source_map = np.fliplr(source_map)
     source['x_im_rot'] =source_map.shape[1] -source['x_im_rot']
-    corr = signal.fftconvolve(source_map,(data_objects[::-1,::-1]**0.15),mode='same')
+    corr = signal.fftconvolve(source_map**0.2,(data_objects[::-1,::-1]**0.1),mode='same')
     y_corr,x_corr = np.unravel_index(np.argmax(corr),corr.shape)
     #plot the results
     if verbose: print('Plotting the results')
@@ -53,16 +61,17 @@ def make_artificial_map(source,data_objects,verbose=True,plot=True,use_mags =Tru
         if verbose:  print('Plotting the results')
         fig, (ax_source,ax_data,ax_corr) = plt.subplots(1,3)
         ax_source.imshow(source_map[::-1,:])    
-        ax_source.plot(x_corr,y_corr,'ro')
+        ax_source.plot(x_corr,source_map.shape[0]-y_corr,'ro',alpha=0.3)
         ax_source.add_patch(
-            mpatches.Rectangle((x_corr-data_objects.shape[1]/2.,y_corr-data_objects.shape[0]/2.),\
+            mpatches.Rectangle((x_corr-data_objects.shape[1]/2.,
+                                source_map.shape[0]-(y_corr)-data_objects.shape[0]/2.),\
                                data_objects.shape[1],data_objects.shape[0],alpha=0.3,fc='r'))
         ax_source.set_title('Catalog objects')
         ax_data.imshow(data_objects**0.15)
         ax_data.set_xlim((0,data_objects.shape[1]))
         ax_data.set_ylim((0,data_objects.shape[0]))
         ax_data.set_title('Sextracted median')
-        ax_corr.imshow(corr)
+        ax_corr.imshow(corr[::-1,:])
         ax_corr.set_title('Correlated images')
     
     #add all the sources to second plot

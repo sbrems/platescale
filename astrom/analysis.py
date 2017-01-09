@@ -23,13 +23,16 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
         idz_ign = np.array(ignored_med.index.values)
         sex2med = {}
         ign_in_this_im = []
+
         #use the unshifted images as there are no fine shifted for source_med (yet)
-        for i_src,xy_src in zip(sex_coords[i_im].index.values,sex_coords[i_im][['x_image_sex','y_image_sex']].as_matrix()):
+        for i_src,xy_src in zip(idz_med,sex_coords[i_im][['x_image_sex','y_image_sex']].as_matrix()):
             idx_med = []
             idx_ign = []
             x_src,y_src = xy_src
-            for i_med,xy_med in zip(source_med.index.values,source_med[['x_image','y_image']].as_matrix()):
-                x_med,y_med = xy_med
+            #for i_med,xy_med in zip(idz_med,source_med[['x_image','y_image']].as_matrix()):
+            for i_med in idz_med:
+                #x_med,y_med = xy_med
+                x_med,y_med = source_med['x_image'][i_med],source_med['y_image'][i_med]
                 dist = np.sqrt( (x_src - x_med)**2 + (y_src-y_med)**2 )
                 if dist <= max_mvmnt:
                     idx_med.append(i_med)
@@ -105,6 +108,7 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
             else: #alrdy have all cases (I hope)
                 raise ValueError('You shouldnt be here...bug in code???')
         #now save the results for this image
+        
         if i_im not in ign_im:
             ignored.append([i_im,ign_in_this_im])
 
@@ -113,6 +117,7 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
             sex_dum2 = sex_dum2.set_index([[sex2med[x] for x in sex_dum2.index]])
             sex_coords[i_im] = sex_dum1.join(sex_dum2,how='inner',lsuffix='_in_med')
     excluded = [sex_coords[x] for x in ign_im]
+    
     sex_coords = [sex_coords[x] for x in xrange(len(sex_coords)) if x not in ign_im]
     
     return sex_coords,excluded,ignored,ign_im

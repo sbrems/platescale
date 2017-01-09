@@ -68,10 +68,10 @@ def rotate_coords(x,y,angle,rad = False,center=[0.,0.]):
         angle *= 2*math.pi/360.
     x = np.array(x)
     y = np.array(y)
-    x -= center[0]
-    y -= center[1]
-    x = x * math.cos(angle) - y * math.sin(angle)
-    y = x * math.sin(angle) + y * math.cos(angle)
+    x_dum = x - center[0]
+    y_dum = y - center[1]
+    x = x_dum * math.cos(angle) - y_dum * math.sin(angle)
+    y = x_dum * math.sin(angle) + y_dum * math.cos(angle)
     x += center[0]
     y += center[1]
     return x,y
@@ -186,10 +186,16 @@ def get_headerparams(header,verbose=True):
     mjd_obs=None
     mjd_obs = header['MJD-OBS']
     
-    if verbose: print('Found the following configuration:\n AGPM: %s \n target: %s \n mjd_obs: %s' \
-                      %(agpm,target,mjd_obs))
+    if use_rot_header:
+        rot_header = np.rad2deg(np.arcsin(header['CD2_1']/header['CD1_1']))
+    else:
+        rot_header = 0.0
+
+    if verbose: print('Found the following configuration:\n AGPM: %s \n target: %s \n mjd_obs: %s \n rot_init: %s' \
+                      %(agpm,target,mjd_obs,rot_header))
     
-    return target,mjd_obs,agpm,coord_head
+
+    return target,mjd_obs,agpm,coord_head,rot_header
 
 def get_catfiles(target,agpm,dir_cat,dir_temp,verbose=True):
     try: fn_sextr_med

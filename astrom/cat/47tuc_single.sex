@@ -12,9 +12,9 @@ PARAMETERS_NAME  sex.param  # name of the file containing catalog contents
 #------------------------------- Extraction ----------------------------------
  
 DETECT_TYPE      CCD            # CCD (linear) or PHOTO (with gamma correction)
-DETECT_MINAREA   7              # min. # of pixels above threshold
+DETECT_MINAREA   5              # min. # of pixels above threshold
 
-DETECT_THRESH    10.5            # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
+DETECT_THRESH    8.            # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
 ANALYSIS_THRESH  2.5            # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
  
 FILTER           N              # apply filter for detection (Y or N)?

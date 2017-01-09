@@ -83,6 +83,7 @@ def single_matches(data_cube,sex_coords,nr_ign_im,verbose=True,plot=True):
                                     size=6,color='red')
                 
                 im_matched.legend((scat_cat,scat_sex),('Catalogue','Found position'),loc='lower left')
+            
             plt.savefig('found_sources_'+'{:03}'.format(i_im_tot)+'.svg')
             #plt.close('all')
         

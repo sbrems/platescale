@@ -41,6 +41,7 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
                                         names=('mag_auto','x_image','y_image','rms_A_image','rms_B_image'),
                                         dtype={'x_image':np.float64,'y_image':np.float64},
                                         skip_blank_lines = True)
+            sex_coords[kk] = sex_coords[kk].sort_values(by='mag_auto').reset_index(drop=True)
             #subtract 1 as sextractor starts at (1,1) and not (0,0)
             sex_coords[kk]['x_image'] -= 1
             sex_coords[kk]['y_image'] -= 1
