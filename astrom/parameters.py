@@ -1,5 +1,6 @@
 import os
 from astropy.coordinates import SkyCoord
+import numpy as np
 
 ###dont forget to change sexparams file in sextract.py
 
@@ -22,7 +23,7 @@ dir_cat = os.path.dirname(os.path.realpath(__file__))+'/cat/' #directory of cali
 coord_trapez =       SkyCoord('05h35m15.84s','-05d23m22.60s',frame='icrs')
 coord_47tuc_sphere=  SkyCoord('00h23m58.12s','-72d05m30.19s',frame='icrs')
 coord_47tuc_wolfgang=SkyCoord('00h24m06.30s','-72d04m59.60s',frame='icrs')
-query_around_head_coord = 25. #in arcsec how far stars in catalog may be away from header position. inf for whole catalog
+query_around_head_coord = 30. #in arcsec how far stars in catalog may be away from header position. inf for whole catalog
 #parameters of source coordinate file. Comment out for standard nomenclature dependent on target
 #give julian date of the coordinates
 #mjd_source = 55850  #Close12: 55850 
@@ -59,3 +60,6 @@ sigma_outliers = 5. #give tolerance for sigma clipping
 ignore_frac = 0.7 #ignore stars with less good connections as the fraction given (e.g. = 0 keeps all stars,even if only bad connections). Good connetction 
 max_mvmnt = 5. #maximal assumed movement of the stars in the cc images compared to the median image. If the value is too big neighbouring stars will intefere. if too small, tracking of stars doesnt work
 min_contrast = 1.5 #if only one star is found in single image but two in median in search_rad, use the brighter one if the contrast is higher than this given. Else ignore the source.
+#get rms (fwhm/2) for 4micron at 8.2m telescope
+cut_size = int(np.ceil(1.44*4e-6 /8.2 /np.pi*360*3600*1000/pxscl_init/2./2.)*2) #size to cut around stars for psf fitting. has to be even
+center_sextr = 'peak' #'peak' to use brightest pixel,'auto' to use sextractors auto detection

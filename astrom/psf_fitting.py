@@ -17,65 +17,69 @@ import warnings
 import matplotlib.pyplot as plt
 import os
 import subprocess
+from parameters import cut_size
 
-import ipdb
 
-def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,fn_out='psf_cube',verbose=True):
+def make_psf(data_cube,sex_coords,ign_ims = [],n_rms=2,conv_gauss=True,keepfr=0.7,fn_out='psf_cube',verbose=True):
     '''Makes a psf out of the stars in the images found by fitting and median combining them.n_rms
     gives the image size in rms of the ellipse parameter of the brightest star found by sextractor 
     to which the images are cropped.'''
     x_dim = data_cube.shape[2]
     y_dim = data_cube.shape[1]
-    n_images = data_cube.shape[0]
+    process_images = [x for x in range(data_cube.shape[0]) if x not in ign_ims]
+    n_images = len(sex_coords)
     n_stars = 0
+    #get rms (fwhm/2) for 4micron at 8.2m telescope
+    #cut_size = int(np.ceil(1.44*4e-6 /8.2 /math.pi*360*3600*1000/pxscl_init/2./2.)*2)
     for i_image in range(n_images):
         n_stars += len(sex_coords[i_image])
-        sex_coords[i_image].reset_index(inplace=True)
+        sex_coords[i_image].reset_index(inplace=True,drop=True)
 
     i_max = sex_coords[0]['mag_auto'].idxmin()
-    #get rms (fwhm/2) for 4micron at 8m telescope
-    size = 1.44*4e-6 /8.4 /math.pi*360*3600*1000/pxscl_init/2.
 #uncomment for sextractor values
-#    size = int(round(n_rms* math.sqrt(math.pow(sex_coords[0]['rms_A_image'][i_max],2) +\
+#    cut_size = int(round(n_rms* math.sqrt(math.pow(sex_coords[0]['rms_A_image'][i_max],2) +\
 #                                      math.pow(sex_coords[0]['rms_B_image'][i_max],2))))
-    #make size even
-    size = int(np.ceil(size / 2.) * 2)
+    #make cut_size even
+    #cut_size = int(np.ceil(cut_size / 2.) * 2)
     #Now cut the image around this region and update x/y_dim in
     #case it was at the border
     x_star = int(sex_coords[0]['x_image'][i_max])
     y_star = int(sex_coords[0]['y_image'][i_max])
-    brightest_star = data_cube[0,
-                               max(y_star - size,0) : min(y_star + size, y_dim),
-                               max(x_star - size,0) : min(x_star + size, x_dim)]
+    brightest_star = data_cube[process_images[0],
+                               y_star - cut_size : y_star + cut_size+1,
+                               x_star - cut_size : x_star + cut_size+1]
     x_dim = brightest_star.shape[1]
     y_dim = brightest_star.shape[0]
-                   
     data_stars = np.full((n_stars,y_dim,x_dim),np.nan,dtype=np.float64)
     shifts = np.full((n_stars,2),np.nan,dtype=np.float64)
     data_stars[0,:,:] = brightest_star
     shifts[0,:] = (0,0)
     
     del brightest_star
-    
     #now cut out the other stars
     i_star_tot = 1 #already have the ref-star
-    max_shift = 5
+    max_shift = 4
     n_removed_stars = 0 #count stars could not be fit properly
-    for i_image in range(n_images):
-        if verbose: print('Getting PSF for image ',i_image+1,' of ',n_images)
+    if verbose: print('Getting PSFs from ',n_images, 'images')
+    
+    for i_image,i_use_image in zip(range(n_images),process_images):
+        #if verbose: print('Getting PSF for image ',i_image+1,' of ',n_images)
         for i_star in range(len(sex_coords[i_image])):
-            use_star = False #set to true if fitting worked. otherwise dont use the star
+            use_star = True #set to true if fitting worked. otherwise dont use the star
             if i_image != 0 or i_star != i_max:
                 x_cen = int(round(sex_coords[i_image]['x_image'][i_star]))
                 y_cen = int(round(sex_coords[i_image]['y_image'][i_star]))
-                cut_star = data_cube[i_image,
-                                     y_cen - size:y_cen + size,
-                                     x_cen - size:x_cen + size].copy()
-                if conv_gauss:
+                cut_star = data_cube[i_use_image,
+                                     y_cen - cut_size:y_cen + cut_size+1,
+                                     x_cen - cut_size:x_cen + cut_size+1].copy()
+                #if the cut_size is too close to border, dont use for ref-psf generation . This is indicated by too small image
+                if cut_star.shape != data_stars[0,:,:].shape:
+                    use_star = False
+
+                if conv_gauss and use_star:
                     shifts[i_star_tot,:] = find_shift(data_stars[0,:,:],cut_star,n_rms=n_rms,
                                                       plotname='aligned_to_psf_'+'{:03}'.format(i_star_tot)+'.svg')[0]
-                else:
-                
+                elif use_star:
                     found_shift = find_shift_upsampling(data_stars[0,:,:],cut_star,
                                                         max_shift=max_shift,try_smaller_fov=False)[0]
                     if np.sqrt(found_shift[0]**2 + found_shift[1]**2) > max_shift :
@@ -84,13 +88,13 @@ def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,fn_out='psf
                     else:
                         shifts[i_star_tot,:] = found_shift
                         use_star = True                    
-                #shift the image star region +-5px and cut the star dont shift whole image cause
+                #shift the image star region +-3px and cut the star dont shift whole image cause
                 #fft_shift can't treat nans
                 if use_star:
-                    shifted_data = fft_shift(data_cube[i_image,
-                                                       y_cen - size-5:y_cen + size+5,
-                                                       x_cen - size-5:x_cen + size+5],
-                                             shifts[i_star_tot][1],shifts[i_star_tot][0])[5:-5,5:-5]
+                    shifted_data = fft_shift(data_cube[i_use_image,
+                                                       y_cen - cut_size-3:y_cen + cut_size+3+1,
+                                                       x_cen - cut_size-3:x_cen + cut_size+3+1],
+                                             shifts[i_star_tot][1],shifts[i_star_tot][0])[3:-3,3:-3]
                     #check if only infs are left
                     if np.count_nonzero(np.isnan(shifted_data)) == shifted_data.size:
                         raise ValueError('Only nan array detected when shifting image at make psf!')
@@ -107,7 +111,6 @@ def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,fn_out='psf
     for i_star in range(n_stars):
         data_stars[i_star] *= pix_max / np.max(data_stars[i_star])
     first_med = np.median(data_stars,axis=0)
-
     ###########################################################################################
     ############Only keep keepfr of the images with the least residuals to the median######
     ###########################################################################################
@@ -125,11 +128,12 @@ def make_psf(data_cube,sex_coords,n_rms=2,conv_gauss=True,keepfr=0.7,fn_out='psf
     fits.writeto(dir_temp+fn_out+'_selected_w_median.fits',np.concatenate((selected_stars,[second_med]),axis=0))
     return second_med
             
-def refine_fit(data_cube,data_psf,sex_coords,conv_gauss = True,verbose=True):
+def refine_fit(data_cube,data_psf,sex_coords,ign_ims=[],conv_gauss = True,verbose=True):
     '''Resets the x_image and y_image from sextractor. Use convolution with gaussian fitting
     if conv_gauss==True. Else use upsampling and find the max of crosscorrelation.
     Sex coords has to be a list of pandas data frames.'''
-    
+    #only use the images which where not discarded before
+    data_cube = data_cube[[x for x in range(data_cube.shape[0]) if x not in ign_ims],:,:]
     x_dim = data_cube.shape[2]
     y_dim = data_cube.shape[1]
     n_images = data_cube.shape[0]
@@ -169,7 +173,7 @@ def refine_fit(data_cube,data_psf,sex_coords,conv_gauss = True,verbose=True):
             sex_coords[i_image]['x_image'][i_star]     = x_old - shifts[i_star,0]
             sex_coords[i_image]['y_image'][i_star]     = y_old - shifts[i_star,1]
             sex_coords[i_image]['shift_error'] = errors
-        if verbose: print('Shifts found in image nr',i_image,':\n',shifts)
+        #if verbose: print('Shifts found in image nr',i_image,':\n',shifts)
             
     return sex_coords
 
@@ -249,7 +253,7 @@ def find_shift(ref_frame,shift_frame,plotname=None, n_rms=2, convolve=True):
 
 
 #shift_detection with register_translation
-def find_shift_upsampling(ref_frame,shift_frame,max_shift = 5,try_smaller_fov=True):
+def find_shift_upsampling(ref_frame,shift_frame,max_shift = 4,try_smaller_fov=True):
     #make images non-negative. There seems to be a bug else
     ref_frame -= np.min(ref_frame)
     shift_frame -= np.min(shift_frame)

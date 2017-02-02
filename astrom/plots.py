@@ -133,10 +133,11 @@ def distance_distributions(astrometry,astrometry_grouped):
         for i_tg in range(n_tg):
             scat.scatter(ii+np.float(i_tg)/n_tg, this_group['platescale'].iloc[i_tg], c=col,
                         label=str(comb))
+    scat.set_title('Platescales for the different connections')
     scat.set_xlabel('Combination nr')
     scat.set_ylabel('Platescale')
     scat.grid(True)
-    scat.set_xticklabels(combinations,rotation=30)
+    scat.set_xticklabels(combinations,rotation=20)
     plt.savefig(dir_out+'scatter_plot.svg')
     plt.close()
     #also do some histogram plots

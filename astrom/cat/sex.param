@@ -45,8 +45,8 @@ MAG_AUTO                 Kron-like elliptical aperture magnitude                
 #YMIN_IMAGE               Minimum y-coordinate among detected pixels                [pixel]
 #XMAX_IMAGE               Maximum x-coordinate among detected pixels                [pixel]
 #YMAX_IMAGE               Maximum y-coordinate among detected pixels                [pixel]
-#XPEAK_IMAGE              x-coordinate of the brightest pixel                       [pixel]
-#YPEAK_IMAGE              y-coordinate of the brightest pixel                       [pixel]
+XPEAK_IMAGE              x-coordinate of the brightest pixel                       [pixel]
+YPEAK_IMAGE              y-coordinate of the brightest pixel                       [pixel]
 #XPEAK_FOCAL              Focal-plane x coordinate of the brightest pixel          
 #YPEAK_FOCAL              Focal-plane y coordinate of the brightest pixel          
 #XPEAK_WORLD              World-x coordinate of the brightest pixel                 [deg]

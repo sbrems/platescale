@@ -25,10 +25,11 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
         ign_in_this_im = []
 
         #use the unshifted images as there are no fine shifted for source_med (yet)
-        for i_src,xy_src in zip(idz_med,sex_coords[i_im][['x_image_sex','y_image_sex']].as_matrix()):
+        for i_src in idz_src:
             idx_med = []
             idx_ign = []
-            x_src,y_src = xy_src
+            x_src = sex_coords[i_im]['x_image'][i_src]
+            y_src = sex_coords[i_im]['y_image'][i_src]
             #for i_med,xy_med in zip(idz_med,source_med[['x_image','y_image']].as_matrix()):
             for i_med in idz_med:
                 #x_med,y_med = xy_med

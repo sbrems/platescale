@@ -90,20 +90,29 @@ def do(verbose=True,plot=True,delete_old=True,use_mags=True):
     ############################################
     ####sextract the sources####################
     ############################################
-
+    
     sex_coords  = sextract.coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,
                                        med=False,verbose=verbose)
     psf_med = psf_fitting.make_psf(np.array([data_med]),[source_med],fn_out = 'med_cube',keepfr=0.9)
-    source_med = psf_fitting.refine_fit(np.array([data_med]),psf_med,[source_med],
+    source_med = psf_fitting.refine_fit(np.array([data_med]),psf_med,[source_med],ign_ims=[],
                                         conv_gauss=conv_gauss,verbose=verbose)[0]
+
+    #excluded is excluded full images pd frame. Ignored is a list with len of n_images containing
+    #single, ignored sources.i_ign im is a list whith the numbers of the ignored frames as they
+    #are f.e. in data_cube
+    sex_coords, excluded, ignored, nr_ign_im = astrom.analysis.compare_to_med(sex_coords,source_med,
+                                                                              ignored_med,
+                                                                              verbose=verbose)
+
     #make a reference psf to use to center the stars
-    psf_stars = psf_fitting.make_psf(data_cube,sex_coords, n_rms = 2, conv_gauss=conv_gauss, keepfr = keepfr,fn_out='psf_cube')
+    psf_stars = psf_fitting.make_psf(data_cube,sex_coords,ign_ims = nr_ign_im, n_rms = 2, 
+                                     conv_gauss=conv_gauss, keepfr = keepfr,fn_out='psf_cube')
     #find all targets via a ccmap and the psf just created)
     #sex_coords_ccmap = psf_fitting.find_via_ccmap(data_cube,psf_stars,target)
     #refine the stellar positions with the new psf. old ones in x/y_image_sex column
-    sex_coords = psf_fitting.refine_fit(data_cube,psf_stars,sex_coords,conv_gauss=conv_gauss,
+    sex_coords = psf_fitting.refine_fit(data_cube,psf_stars,sex_coords,ign_ims=nr_ign_im, conv_gauss=conv_gauss,
                                         verbose=verbose)
-    
+
     ############################################
     #now do the astrometry######################
     ############################################
@@ -112,12 +121,7 @@ def do(verbose=True,plot=True,delete_old=True,use_mags=True):
     #excluded
     # sex_coords, excluded, multiples = astrom.analysis.connect_sources(sex_coords,source_med,
     #                                                                   n_images=n_images)
-    #excluded is excluded full images pd frame. Ignored is a list with len of n_images containing
-    #single, ignored sources.i_ign im is a list whith the numbers of the ignored frames as they
-    #are f.e. in data_cube
-    sex_coords, excluded, ignored, nr_ign_im = astrom.analysis.compare_to_med(sex_coords,source_med,
-                                                                              ignored_med,
-                                                                              verbose=verbose)
+ 
     
     #########################################################
     #do the statistics. e.g. measure all the distances#######

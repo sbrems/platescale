@@ -1,3 +1,4 @@
+
 from __future__ import print_function,division
 import os
 import numpy as np
@@ -23,7 +24,7 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
     os.chdir(dir_temp)
     FNULL = open(os.devnull,'w') #suppress output
     if not med:
-        n_images = data_cube.shape[0]
+        n_images,y_size,x_size = data_cube.shape        
         if verbose: print('Sextracting from ',n_images,' images.')
         for kk in range(n_images):
             fits.writeto('temp.fits',data_cube[kk,:,:],output_verify = 'ignore')
@@ -36,15 +37,30 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
         sex_coords = [None] * n_images
         for kk in range(n_images):
             all_objects[kk,:,:] = fits.getdata(target+'_objects_'+'{:03}'.format(kk)+'.fits')
-            sex_coords[kk] =pd.read_csv(target+'_'+'{:03}'.format(kk)+'.sex', header=None,
-                                        delimiter=r'\s+',comment='#',
-                                        names=('mag_auto','x_image','y_image','rms_A_image','rms_B_image'),
-                                        dtype={'x_image':np.float64,'y_image':np.float64},
-                                        skip_blank_lines = True)
-            sex_coords[kk] = sex_coords[kk].sort_values(by='mag_auto').reset_index(drop=True)
+            if center_sextr == 'peak':
+                sex_coords[kk] =pd.read_csv(target+'_'+'{:03}'.format(kk)+'.sex', header=None,
+                                            delimiter=r'\s+',comment='#',
+                                            names=('mag_auto','x_image','y_image','x_auto_not_used','y_auto_not_used','rms_A_image','rms_B_image'),
+                                            dtype={'x_image':np.float64,'y_image':np.float64},
+                                            skip_blank_lines = True)
+            elif center_sextr == 'auto':
+                sex_coords[kk] =pd.read_csv(target+'_'+'{:03}'.format(kk)+'.sex', header=None,
+                                            delimiter=r'\s+',comment='#',
+                                            names=('mag_auto','x_peak_not_used','y_peak_not_used','x_image','y_image','rms_A_image','rms_B_image'),
+                                            dtype={'x_image':np.float64,'y_image':np.float64},
+                                            skip_blank_lines = True)
+            else: 
+                raise ValueError('Invalid value "',center_sextr,'"for center_sextr. Choose peak or auto.')
             #subtract 1 as sextractor starts at (1,1) and not (0,0)
             sex_coords[kk]['x_image'] -= 1
             sex_coords[kk]['y_image'] -= 1
+            #remove the ones too close to the border
+            sex_coords[kk] = sex_coords[kk][(sex_coords[kk].x_image > cut_size+4) & 
+                                            (sex_coords[kk].y_image > cut_size+4) &
+                                            (sex_coords[kk].x_image < (x_size-cut_size-4)) &
+                                            (sex_coords[kk].y_image < (y_size-cut_size-4))]
+            sex_coords[kk] = sex_coords[kk].sort_values(by='mag_auto').reset_index(drop=True)
+
         fits.writeto(dir_out+target+'_objects_cube.fits',all_objects,header_cube[0],output_verify = 'ignore')
 
     if med:
@@ -65,11 +81,11 @@ def coordinates(data_cube,header_cube,target,fn_sextr_sgl,fn_sextr_med,med=False
                                 names=('mag_auto','x_image','y_image','rms_A_image','rms_B_image'),
                                 dtype={'x_image':np.float64,'y_image':np.float64},
                                 skip_blank_lines = True)
-        sex_coords = sex_coords.sort_values(by='mag_auto').reset_index(drop=True)
         #subtract 1 as sextractor starts at (1,1) and not (0,0)
         sex_coords['x_image'] -= 1
         sex_coords['y_image'] -= 1
-        #overwrite the just created fits file with the header
+        #overwrite the just created fits file with 
+        sex_coords = sex_coords.sort_values(by='mag_auto').reset_index(drop=True)
         fits.writeto(dir_out+target+'_objects_med.fits',all_objects,header_cube[0],output_verify = 'ignore')
     os.chdir(dir_data)
     if med:
