@@ -1,8 +1,9 @@
-from __future__ import print_function,division
+
 import numpy as np
 import pandas as pd
+import math
+import matplotlib.pyplot as plt
 from astropy.io import fits
-from parameters import *
 from scipy import fftpack
 from scipy import interpolate
 from scipy import signal
@@ -11,13 +12,12 @@ import scipy.optimize as opt
 from scipy.optimize import OptimizeWarning
 from subprocess import call
 import skimage.feature
-import math
-from  misc import twoD_Gaussian
 import warnings
-import matplotlib.pyplot as plt
 import os
 import subprocess
-from parameters import cut_size
+from .parameters import *
+from  .misc import twoD_Gaussian
+#from parameters import cut_size
 
 
 def make_psf(data_cube,sex_coords,ign_ims = [],n_rms=2,conv_gauss=True,keepfr=0.7,fn_out='psf_cube',verbose=True):
@@ -62,7 +62,7 @@ def make_psf(data_cube,sex_coords,ign_ims = [],n_rms=2,conv_gauss=True,keepfr=0.
     n_removed_stars = 0 #count stars could not be fit properly
     if verbose: print('Getting PSFs from ',n_images, 'images')
     
-    for i_image,i_use_image in zip(range(n_images),process_images):
+    for i_image,i_use_image in zip(list(range(n_images)),process_images):
         #if verbose: print('Getting PSF for image ',i_image+1,' of ',n_images)
         for i_star in range(len(sex_coords[i_image])):
             use_star = True #set to true if fitting worked. otherwise dont use the star
@@ -78,7 +78,7 @@ def make_psf(data_cube,sex_coords,ign_ims = [],n_rms=2,conv_gauss=True,keepfr=0.
 
                 if conv_gauss and use_star:
                     shifts[i_star_tot,:] = find_shift(data_stars[0,:,:],cut_star,n_rms=n_rms,
-                                                      plotname='aligned_to_psf_'+'{:03}'.format(i_star_tot)+'.svg')[0]
+                                            plotname='aligned_to_psf_{:03}.svg'.format(i_star_tot))[0]
                 elif use_star:
                     found_shift = find_shift_upsampling(data_stars[0,:,:],cut_star,
                                                         max_shift=max_shift,try_smaller_fov=False)[0]
@@ -124,12 +124,13 @@ def make_psf(data_cube,sex_coords,ign_ims = [],n_rms=2,conv_gauss=True,keepfr=0.
     
     second_med = np.median(selected_stars,axis=0)
 
-    fits.writeto(dir_temp+fn_out+'_w_median.fits',np.concatenate((data_stars,[first_med]),axis=0))
-    fits.writeto(dir_temp+fn_out+'_selected_w_median.fits',np.concatenate((selected_stars,[second_med]),axis=0))
+    fits.writeto(os.path.join(dir_temp,fn_out+'_w_median.fits'),
+                 np.concatenate((data_stars,[first_med]),axis=0))
+    fits.writeto(os.path.join(dir_temp,fn_out+'_selected_w_median.fits'),np.concatenate((selected_stars,[second_med]),axis=0))
     return second_med
             
-def refine_fit(data_cube,data_psf,sex_coords,ign_ims=[],conv_gauss = True,verbose=True):
-    '''Resets the x_image and y_image from sextractor. Use convolution with gaussian fitting
+def refine_fit(data_cube,data_psf,sex_coords,ign_ims=[],conv_gauss = True,verbose=True,plot=True):
+    '''Resets the x_image and y_image from sextractor via psf. Use convolution with gaussian fitting
     if conv_gauss==True. Else use upsampling and find the max of crosscorrelation.
     Sex coords has to be a list of pandas data frames.'''
     #only use the images which where not discarded before
@@ -164,8 +165,12 @@ def refine_fit(data_cube,data_psf,sex_coords,ign_ims=[],conv_gauss = True,verbos
                                     y_old - int(np.floor(size_y/2.)):y_old + int(np.ceil(size_y/2.)),
                                     x_old - int(np.floor(size_x/2.)):x_old + int(np.ceil(size_x/2.))]
             if conv_gauss:
+                if plot:
+                    plotname = 'psf_aligned_{:03}.svg'.format(i_star)
+                else:
+                    plotname = None
                 shifts[i_star,:],errors[i_star] = find_shift(data_psf, cut_star,
-                                              plotname='psf_aligned_'+'{:03}'.format(i_star)+'.svg')
+                                                             plotname=plotname)
             else:
                 shifts[i_star,:],errors[i_star] = find_shift_upsampling(data_psf,cut_star)
 #                shifts[i_star,1] *= -1 #correct for different y convention
@@ -189,7 +194,7 @@ def find_shift(ref_frame,shift_frame,plotname=None, n_rms=2, convolve=True):
     conv = signal.correlate2d(ref_frame,shift_frame, mode='same')
     x = conv.shape[1]
     y = conv.shape[0]
-    xx,yy = np.meshgrid(range(x),range(y))
+    xx,yy = np.meshgrid(list(range(x)),list(range(y)))
     #use max_values as initial guesses and 
     ymax,xmax = np.unravel_index(np.nanargmax(conv),conv.shape)
     initial_guess=(np.nanmax(conv),ymax,xmax,
@@ -208,7 +213,7 @@ def find_shift(ref_frame,shift_frame,plotname=None, n_rms=2, convolve=True):
             conv = conv[quarter_size:-quarter_size,quarter_size:-quarter_size]
             x = conv.shape[1]
             y = conv.shape[0]
-            xx,yy = np.meshgrid(range(x),range(y))
+            xx,yy = np.meshgrid(list(range(x)),list(range(y)))
             #use max_values as initial guesses and 
             ymax,xmax = np.unravel_index(np.nanargmax(conv),conv.shape)
             initial_guess=(np.nanmax(conv),ymax,xmax,
@@ -234,7 +239,7 @@ def find_shift(ref_frame,shift_frame,plotname=None, n_rms=2, convolve=True):
         data_fitted = twoD_Gaussian((xx, yy), *popt)
         
         fig, (ax1,ax2,ax3) = plt.subplots(1, 3)
-        ax1.hold(True)
+        #ax1.hold(True) #depreciated
         ax1.imshow(conv, cmap=plt.cm.jet, origin='bottom',
                    extent=(xx.min(), xx.max(), yy.min(), yy.max()),interpolation='none')
         ax1.contour(xx, yy, data_fitted.reshape(y, x), 20, colors='w')
@@ -247,7 +252,8 @@ def find_shift(ref_frame,shift_frame,plotname=None, n_rms=2, convolve=True):
         ax3.imshow(shift_frame)
         ax3.set_title('shift_frame (=cut star?)') 
     
-        plt.savefig(dir_temp+plotname)
+        plt.savefig(os.path.join(dir_temp,plotname))
+        plt.close('all')
 
     return res, perr
 
@@ -324,7 +330,7 @@ def find_via_ccmap(data_cube,psf,target):
     else:
         raise ValueError('in find_via_ccmap:data_cube has unknown shape: ',data_cube.shape)
     
-    for kk in xrange(n_images):
+    for kk in range(n_images):
         conv = signal.correlate2d(data_cube[kk,:,:],psf, mode='same')
         fits.writeto('temp.fits',conv, output_verify='ignore')
         FNULL = open(os.devnull,'w')
@@ -336,7 +342,7 @@ def find_via_ccmap(data_cube,psf,target):
     sex_coords_ccmap = [None] * n_images
         
     #now read in the data and subtract 1 as sextractor stars counting at (1,1)
-    for kk in xrange(n_images):
+    for kk in range(n_images):
         sex_coords_ccmap[kk] =pd.read_csv(target+'_'+'{:03}'.format(kk)+'.sex', header=None,
                                     delimiter=r'\s+',comment='#',
                                     names=('mag_auto','x_image','y_image','rms_A_image','rms_B_image'),

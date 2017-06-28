@@ -13,12 +13,12 @@ import numpy as np
 #    dir_data = dir_par+target+'/'
 #else:
 #    dir_data = dir_par+target+'_agpm/'
-dir_data = os.getcwd()+'/'
+dir_data = os.getcwd()
 
-dir_out = dir_data+'results/'
-dir_temp= dir_out +'temp/'
-
-dir_cat = os.path.dirname(os.path.realpath(__file__))+'/cat/' #directory of calibration files
+dir_out = os.path.join(dir_data,'results')
+dir_temp= os.path.join(dir_out,'temp')
+#directory of calibration files
+dir_cat = os.path.join(os.path.dirname(os.path.realpath(__file__)),'cat') 
 
 coord_trapez =       SkyCoord('05h35m15.84s','-05d23m22.60s',frame='icrs')
 coord_47tuc_sphere=  SkyCoord('00h23m58.12s','-72d05m30.19s',frame='icrs')
@@ -48,8 +48,8 @@ star_id='MAIN_ID'
 #else:
 pxscl_init = 27.19 #mas/px
 #rot_init   = -0.6
-use_rot_header = True #set True to use header Value, e.g. arcsin(CD2_1/CD1_1)
-rot_offset_guess = -1. #add this to the header Value. This is a guess for the error of the instrument
+use_rot_header = False #set True to use header Value, e.g. arcsin(CD2_1/CD1_1), 0.0 else
+rot_offset_guess = -.5 #add this to the header Value. This is a guess for the error of the instrument and only helps identifying the constellations
 conv_gauss = False #choose if the fitting shall be done by convolution and fitting a 
                    #gaussian to the convolution map(=True) or by upsampling (=False) upsampling
                    #seems better
@@ -61,5 +61,5 @@ ignore_frac = 0.7 #ignore stars with less good connections as the fraction given
 max_mvmnt = 5. #maximal assumed movement of the stars in the cc images compared to the median image. If the value is too big neighbouring stars will intefere. if too small, tracking of stars doesnt work
 min_contrast = 1.5 #if only one star is found in single image but two in median in search_rad, use the brighter one if the contrast is higher than this given. Else ignore the source.
 #get rms (fwhm/2) for 4micron at 8.2m telescope
-cut_size = int(np.ceil(1.44*4e-6 /8.2 /np.pi*360*3600*1000/pxscl_init/2./2.)*2) #size to cut around stars for psf fitting. has to be even
+cut_size = int(np.ceil(1.44*4.e-6 /8.2 /np.pi*360*3600*1000/pxscl_init/2./2.))*2 #size to cut around stars for psf fitting. has to be even
 center_sextr = 'peak' #'peak' to use brightest pixel,'auto' to use sextractors auto detection

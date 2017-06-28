@@ -1,6 +1,5 @@
-from __future__ import print_function,division
+
 import os
-import astrom
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -9,15 +8,11 @@ from subprocess import call
 from scipy import ndimage
 #from scipy import signal
 from scipy.stats import sigmaclip
-import astrom.plots
-import astrom.analysis
-from astrom import misc
-from astrom import sextract
-from astrom import psf_fitting
-from astrom import calc_platescale
 import numpy as np
 from astropy.io import fits
-from astrom.parameters import *
+from . import astrom
+from .astrom import misc,analysis,sextract,psf_fitting,calc_platescale,plots
+from .astrom.parameters import *
 
 import ipdb
 
@@ -42,7 +37,7 @@ def do(verbose=True,plot=True,delete_old=True,use_mags=True):
     results: gives the final platescale    
     '''
 
-    dir_default = os.getcwd()+'/'
+    dir_default = os.getcwd()
     astrom.make_dirs([dir_out,dir_temp],delete_old=delete_old,verbose=verbose)
     filename_cube, data_cube, header_cube =  astrom.read_fits(dir_data,verbose=verbose)
     #determine some parameters from the fits files
@@ -95,7 +90,7 @@ def do(verbose=True,plot=True,delete_old=True,use_mags=True):
                                        med=False,verbose=verbose)
     psf_med = psf_fitting.make_psf(np.array([data_med]),[source_med],fn_out = 'med_cube',keepfr=0.9)
     source_med = psf_fitting.refine_fit(np.array([data_med]),psf_med,[source_med],ign_ims=[],
-                                        conv_gauss=conv_gauss,verbose=verbose)[0]
+                                        conv_gauss=conv_gauss,verbose=verbose,plot=plot)[0]
 
     #excluded is excluded full images pd frame. Ignored is a list with len of n_images containing
     #single, ignored sources.i_ign im is a list whith the numbers of the ignored frames as they
@@ -110,8 +105,8 @@ def do(verbose=True,plot=True,delete_old=True,use_mags=True):
     #find all targets via a ccmap and the psf just created)
     #sex_coords_ccmap = psf_fitting.find_via_ccmap(data_cube,psf_stars,target)
     #refine the stellar positions with the new psf. old ones in x/y_image_sex column
-    sex_coords = psf_fitting.refine_fit(data_cube,psf_stars,sex_coords,ign_ims=nr_ign_im, conv_gauss=conv_gauss,
-                                        verbose=verbose)
+    sex_coords = psf_fitting.refine_fit(data_cube,psf_stars,sex_coords,ign_ims=nr_ign_im, 
+                                        conv_gauss=conv_gauss,verbose=verbose)
 
     ############################################
     #now do the astrometry######################

@@ -1,12 +1,12 @@
-from __future__ import print_function,division
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.stats import sigmaclip
 import itertools
-from parameters import *
 from collections import Counter
-import misc
+from . import misc
+from .parameters import *
 
 def single_matches(data_cube,sex_coords,nr_ign_im,verbose=True,plot=True):
     '''plotting the single matches and doing some sorting in the pd.DataFrames (the astrometry one)'''
@@ -85,11 +85,11 @@ def single_matches(data_cube,sex_coords,nr_ign_im,verbose=True,plot=True):
                 im_matched.legend((scat_cat,scat_sex),('Catalogue','Found position'),loc='lower left')
             
             plt.savefig('found_sources_'+'{:03}'.format(i_im_tot)+'.svg')
-            #plt.close('all')
+            plt.close('all')
         
         i_im_tot += 1
     #sort the entries in astrometry alphabetically
-    for ii,id1,id2 in zip(range(len(astrometry)),astrometry[star_id+'1'],astrometry[star_id+'2']):
+    for ii,id1,id2 in zip(list(range(len(astrometry))),astrometry[star_id+'1'],astrometry[star_id+'2']):
         if id1 > id2:
             astrometry[star_id+'1'][ii] = id2
             astrometry[star_id+'2'][ii] = id1
@@ -160,7 +160,7 @@ def ignore_stars_bad_connections(astrometry_grouped,astrometry_grouped_cliped,ve
                        Counter(dict(astrometry_grouped_cliped.groupby(star_id+'2').size()))
     astrometry_good = astrometry_grouped
     stars_removed = []
-    for star in connections_tot.keys():
+    for star in list(connections_tot.keys()):
         if connections_good[star]/connections_tot[star] < ignore_frac:
             if verbose: print('Removing all measurements of star ',star, ' as it only had ', connections_good[star],\
                   ' of ',connections_tot[star],' good measurements. This is worse than ignore_frac=',ignore_frac )

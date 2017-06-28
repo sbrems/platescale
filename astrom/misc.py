@@ -1,13 +1,12 @@
-from __future__ import print_function,division
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from parameters import *
-import dd_dec_converter as dc
+from .parameters import *
+from . import dd_dec_converter as dc
 from shutil import copy2
 from astropy.coordinates import SkyCoord
 import pandas as pd
-import misc
+
 
 def makeGaussian(size, fwhm = 3, center=None):
     """ Make a square gaussian kernel.
@@ -29,7 +28,8 @@ def makeGaussian(size, fwhm = 3, center=None):
     return np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2)
 
 
-def twoD_Gaussian((x, y), amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
+def twoD_Gaussian(xy, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
+    x,y = xy
     xo = float(xo)
     yo = float(yo)    
     a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
@@ -77,8 +77,8 @@ def rotate_coords(x,y,angle,rad = False,center=[0.,0.]):
     return x,y
     
 def get_catalogue_data(fn_source,mjd_source,coord_head,mjd_obs=None,verbose=True,plot=True):
-    #Reads the positions in RA and DEC from the catalogue given. if mjd is given it calculates
-    #the current position based on the pm found in that catalogue
+    '''Reads the positions in RA and DEC from the catalogue given. if mjd is given it calculates
+    the current position based on the pm found in that catalogue'''
     
     #read in the coords and convert them
     if verbose: print('Converting coordinates. Assuming hmsdms and mas/yr given in',fn_source,pm_ra,pm_dec)
@@ -93,7 +93,7 @@ def get_catalogue_data(fn_source,mjd_source,coord_head,mjd_obs=None,verbose=True
     else: #assuming deg
         if verbose: print('Converting coordinates. Assuming deg and mas/yr given in',fn_source,pm_ra,pm_dec) 
         coord_fmt = 'deg'
-    for ii in xrange(len(source[ra])):
+    for ii in range(len(source[ra])):
         if coord_fmt == 'hmsdms':
             coord_dum = SkyCoord(dc.hmsToDeg(source[ra][ii].strip(), sep=' '), \
                                  dc.dmsToDeg(source[dec][ii].strip(),sep=' '), \
@@ -122,16 +122,23 @@ def get_catalogue_data(fn_source,mjd_source,coord_head,mjd_obs=None,verbose=True
     #calculate the current positions and make some plots
     ra_now =[]
     dec_now=[]
+    pmra_mean  = np.nanmean(source[ra])
+    pmdec_mean = np.nanmean(source[dec])
     for ii in range(len(source[ra])):
         if np.isfinite(source[pm_ra][ii]):
-            ra_now.append(source[ra][ii]+ (mjd_obs - mjd_source)/365.2425 * source[pm_ra][ii] / (1000.*60.*60.))
-            dec_now.append(source[dec][ii]+ (mjd_obs - mjd_source)/365.2425 * source[pm_dec][ii] / (1000.*60.*60.))
+            ra_now.append(source[ra][ii]+  (mjd_obs - mjd_source)/365.2425 * source[pm_ra][ii]\
+                          / (1000.*60.*60.)/np.cos(source[dec][ii]))
+            dec_now.append(source[dec][ii]+(mjd_obs - mjd_source)/365.2425 * source[pm_dec][ii]\
+                          / (1000.*60.*60.))
             if (abs(ra_now[ii]-source[ra][ii] >= 1)) | (abs(dec_now[ii]-source[dec][ii] >= 1)):
                 raise ValueError('PM too high for target', source[star_id])
         else:
-            ra_now.append(source[ra][ii])
-            dec_now.append(source[dec][ii])
-            
+            ra_now.append(source[ra][ii]+  (mjd_obs - mjd_source)/365.2425 * pmra_mean\
+                          / (1000.*60.*60.)/np.cos(source[dec][ii]))
+            dec_now.append(source[dec][ii]+(mjd_obs - mjd_source)/365.2425 * pmdec_mean\
+                          / (1000.*60.*60.))
+    print('Corrected for proper motion. The mean values around are \
+ra/dec= {},{} [mas]'.format(pmra_mean,pmdec_mean))
     ra_now = np.array(ra_now)
     dec_now= np.array(dec_now)
     source['ra_now'] = ra_now
@@ -146,7 +153,7 @@ def get_catalogue_data(fn_source,mjd_source,coord_head,mjd_obs=None,verbose=True
         plt.scatter(source['ra_now'],source['dec_now'], color='red',label='With PM',alpha = 0.3)
        # plt.scatter(source['ra_now_rot'],source['dec_now_rot'], color='k',label='With PM and rotated',alpha = 0.3)
         plt.legend()
-        plt.savefig(dir_out+'catalogue_stars.svg')
+        plt.savefig(os.path.join(dir_out,'catalogue_stars.svg'))
         plt.close('all')
     
     return source
@@ -168,22 +175,22 @@ def weighted_avg_and_std(values, weights):
 def get_headerparams(header,verbose=True):
     targetname = header['OBJECT'].lower()
     target = None
-    coord_head = SkyCoord(header['CRVAL1'],header['CRVAL2'],'icrs',unit='deg')
+    coord_head = SkyCoord(header['CRVAL1'],header['CRVAL2'],frame='icrs',unit='deg')
     while target == None:
-        if ('trapezium' in targetname) or (coord_head.separation(coord_trapez).arcsec < 30) :
+        if ('trapezium' in targetname) \
+           or (coord_head.separation(coord_trapez).arcsec < query_around_head_coord) :
             target = 'trapezium'
         elif ('47tuc' in targetname) \
-             or (coord_head.separation(coord_47tuc_sphere).arcsec < 30)\
-             or (coord_head.separation(coord_47tuc_wolfgang).arcsec < 30):
+             or (coord_head.separation(coord_47tuc_sphere).arcsec < query_around_head_coord)\
+             or (coord_head.separation(coord_47tuc_wolfgang).arcsec < query_around_head_coord):
             target = '47tuc'
         else:
             print('ATTENTION!!! Target <',targetname,'> unknown. Please type trapezium or 47tuc .')
-            targetname = str(raw_input())
+            targetname = str(input())
     if 'apo_165' in header['Apodizer'].lower():
         agpm=True
     else:
         agpm=False
-    mjd_obs=None
     mjd_obs = header['MJD-OBS']
     
     if use_rot_header:
@@ -191,28 +198,29 @@ def get_headerparams(header,verbose=True):
     else:
         rot_header = 0.0
 
-    if verbose: print('Found the following configuration:\n AGPM: %s \n target: %s \n mjd_obs: %s \n rot_init: %s' \
-                      %(agpm,target,mjd_obs,rot_header))
+    if verbose: print('Found the following configuration:\n AGPM: {} \n target: {} \n mjd_obs: {}\n\
+ rot_init: %s'.format(agpm,target,mjd_obs,rot_header))
     
 
     return target,mjd_obs,agpm,coord_head,rot_header
 
 def get_catfiles(target,agpm,dir_cat,dir_temp,verbose=True):
     try: fn_sextr_med
-    except NameError: fn_sextr_med = dir_cat+target+'_med.sex'
+    except NameError: fn_sextr_med = os.path.join(dir_cat,target+'_med.sex')
     try: fn_sextr_sgl
-    except NameError: fn_sextr_sgl = dir_cat+target+'_single.sex'
+    except NameError: fn_sextr_sgl = os.path.join(dir_cat,target+'_single.sex')
     try: fn_source
-    except NameError: fn_source = dir_cat+target+'.csv'
+    except NameError: fn_source = os.path.join(dir_cat,target+'.csv')
     try: mjd_source
     except NameError:
         if target == 'trapezium':
             mjd_source = 55850.
         if target == '47tuc':
-            mjd_source = 52369.5
+            #mjd_source = 52369.5
+            mjd_source = 53808.1902 #Bellini catalogue
     if verbose: print('Using and copying the following parameterfiles: \n sextractor median:%s \n sextractor single: %s \n source catalog: %s \n mjd of source cat: %s' %(fn_sextr_med,fn_sextr_sgl,fn_source,mjd_source))
     for fn in [fn_sextr_med,fn_sextr_sgl,fn_source]:
-        copy2(fn,dir_temp+os.path.basename(fn))
+        copy2(fn,os.path.join(dir_temp,os.path.basename(fn)))
         fn = os.path.basename(fn)
-    copy2(dir_cat+'sex.param',dir_temp+'sex.param')
+    copy2(os.path.join(dir_cat,'sex.param'),os.path.join(dir_temp,'sex.param'))
     return mjd_source,fn_sextr_med,fn_sextr_sgl,fn_source

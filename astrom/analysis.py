@@ -1,10 +1,10 @@
-from __future__ import print_function,division
+
 import os
 import numpy as np
 import pandas as pd
-import misc
+from . import misc
 import itertools
-from parameters import *
+from .parameters import *
 
 
 def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
@@ -62,7 +62,7 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
             elif len(idx_med) >1: #multiple sources found => See if there are also multiple in image
                 multi_im = []
                 for ii_src in idz_src:
-                    x_src2,y_src2 = sex_coords[i_im][['x_image_sex','y_image_sex']].loc[ii_src]
+                    x_src2,y_src2 = sex_coords[i_im][['x_image','y_image']].loc[ii_src]
                     dist = np.sqrt( (x_src - x_src2)**2 + (y_src - y_src2)**2 )
                     if dist <= search_rad:
                         multi_im.append(ii_src)
@@ -83,7 +83,7 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
                             #remove both found indices
                             if verbose: print('Found sources %s in image nr %d but %s in median image. As %s is brighter (mag %d vs %d in median image), assuming this as true source.' %(multi_im,i_im,idx_med,idx_med_use,mag0,mag1))
                             
-                            idz_src = [x for x in idz_src if x not in sex2med.keys()]
+                            idz_src = [x for x in idz_src if x not in list(sex2med.keys())]
                             idz_med = [x for x in idz_med if x not in idx_med]
                             
                             #break                           
@@ -95,14 +95,14 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
                     #                 i_im,i_src)
                 else:  #len(multi_im) == len(idx_med) >1v:#good case. minimize distance
                     list_im = np.hstack((np.transpose([multi_im,]),
-                                         sex_coords[i_im].loc[multi_im].as_matrix(columns=['x_image_sex','y_image_sex'])))
+                                         sex_coords[i_im].loc[multi_im].as_matrix(columns=['x_image','y_image'])))
                     list_med =np.hstack((np.transpose([idx_med,]),
                                           source_med.loc[idx_med].as_matrix(columns=['x_image','y_image'])))
                     dict_match = match_smallest_dist(list_im,list_med)
                     sex2med.update(dict_match)
                     #remove the found indizes from the lists
-                    idz_src = [x for x in idz_src if x not in sex2med.keys()]
-                    idz_med = [x for x in idz_med if x not in sex2med.values()]
+                    idz_src = [x for x in idz_src if x not in list(sex2med.keys())]
+                    idz_med = [x for x in idz_med if x not in list(sex2med.values())]
             elif len(idx_med) == 1: #the good case
                 sex2med[int(i_src)] = int(idx_med[0])
                 idz_med = np.delete(idz_med,np.where(idz_med == idx_med))
@@ -113,13 +113,13 @@ def compare_to_med(sex_coords,source_med,ignored_med,verbose=True):
         if i_im not in ign_im:
             ignored.append([i_im,ign_in_this_im])
 
-            sex_dum1 = source_med.loc[sex2med.values()]
-            sex_dum2 = sex_coords[i_im].loc[sex2med.keys()]
+            sex_dum1 = source_med.loc[list(sex2med.values())]
+            sex_dum2 = sex_coords[i_im].loc[list(sex2med.keys())]
             sex_dum2 = sex_dum2.set_index([[sex2med[x] for x in sex_dum2.index]])
             sex_coords[i_im] = sex_dum1.join(sex_dum2,how='inner',lsuffix='_in_med')
     excluded = [sex_coords[x] for x in ign_im]
     
-    sex_coords = [sex_coords[x] for x in xrange(len(sex_coords)) if x not in ign_im]
+    sex_coords = [sex_coords[x] for x in range(len(sex_coords)) if x not in ign_im]
     
     return sex_coords,excluded,ignored,ign_im
     
@@ -219,7 +219,7 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
     med_ignore = [] #for sources found in image but not in catologue
     med2cat = {}
     for i_med in idz_med:
-        if i_med not in med2cat.keys(): #check this for the case of multiples
+        if i_med not in list(med2cat.keys()): #check this for the case of multiples
             id_cat = []
             for i_cat in idz_cat:
                 dist =np.sqrt((source_cat.x_data_rot[i_cat] - median_sources.x_image[i_med])**2 +
@@ -238,8 +238,8 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
             elif len(id_cat) ==1: #one source found
                 med2cat[i_med] = id_cat[0]
                 #remove the found indizes from the lists
-                idz_cat = [x for x in idz_cat if x not in med2cat.values()]
-                idz_med = [x for x in idz_med if x not in med2cat.keys()]
+                idz_cat = [x for x in idz_cat if x not in list(med2cat.values())]
+                idz_med = [x for x in idz_med if x not in list(med2cat.keys())]
             elif len(id_cat) >= 2: #multiple sources found in area
                 #if there is only one source nearby in the data, ignore it
                 multi_med = []
@@ -263,8 +263,8 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
                     dict_match = match_smallest_dist(list_med,list_cat)
                     med2cat.update(dict_match)
                     #remove the found indizes from the lists
-                    idz_cat = [x for x in idz_cat if x not in med2cat.values()]
-                    idz_med = [x for x in idz_med if x not in med2cat.keys()]
+                    idz_cat = [x for x in idz_cat if x not in list(med2cat.values())]
+                    idz_med = [x for x in idz_med if x not in list(med2cat.keys())]
                 else: #len(multi_med) > len(id_cat)
                     raise ValueError('There were sources in the catalogue found. However, not as many '+
                                      'as there were sources found in the median image (%n vs %n)' %(len(id_cat),len(multi_med)),
@@ -274,8 +274,8 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
                                      source_cat.y_data_rot[id_cat])
 
     #make the catalogue with only the sources found in the median image
-    source_med_dum1 = source_cat.loc[med2cat.values()]
-    source_med_dum2 = median_sources.loc[med2cat.keys()]
+    source_med_dum1 = source_cat.loc[list(med2cat.values())]
+    source_med_dum2 = median_sources.loc[list(med2cat.keys())]
     source_med_dum2 = source_med_dum2.set_index([[med2cat[x] for x in source_med_dum2.index]])
     source_med = source_med_dum1.join(source_med_dum2,how='inner')
     ignored_med = median_sources.loc[med_ignore]
@@ -290,7 +290,7 @@ def match_smallest_dist(list1,list2):
     list1=np.array(list1)
     list2=np.array(list2)
     l12l2 = {}
-    combinations = [zip(x,list1) for x in itertools.permutations(list2,len(list1))]
+    combinations = [list(zip(x,list1)) for x in itertools.permutations(list2,len(list1))]
     comb_len = []
     for comb in combinations:
         tot_length = 0.

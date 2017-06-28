@@ -1,4 +1,4 @@
-from __future__ import print_function,division
+
 import os
 from astropy.io import fits
 import numpy as np
@@ -32,10 +32,9 @@ def read_fits(directory,verbose=True):
     #to avoid buffer overflows we need the number images first, which is not the same as
     #filenumber, as some images are cubes and some are not
     n_images = 0
-    form = []
-    for file in sorted(os.listdir(directory)):
-        if file.endswith('.fits'):
-            form = fits.getdata(directory+file).shape
+    for ffile in sorted(os.listdir(directory)):
+        if ffile.endswith('.fits'):
+            form = fits.getdata(os.path.join(directory,ffile)).shape
             if len(form) == 3 : #image cube
                 n_images += form[0]
                 if verbose: print('Found ',n_images+1,' frames in ',directory)
@@ -50,18 +49,18 @@ def read_fits(directory,verbose=True):
     headers = []
     all_data = np.full((n_images,form[-2],form[-1]),np.nan,dtype=np.float32) #float16 for memory
     n = 0
-    for file in sorted(os.listdir(directory)):
-        if file.endswith('.fits'):
-            data,header = fits.getdata(directory+file,header=True)
+    for ffile in sorted(os.listdir(directory)):
+        if ffile.endswith('.fits'):
+            data,header = fits.getdata(os.path.join(directory,ffile),header=True)
             if len(data.shape) == 3 :#image cube
                 all_data[n:n+data.shape[0],:,:] = data
-                headers.extend(header for ii in xrange(data.shape[0]))
-                filenames.extend(file for ii in xrange(data.shape[0]))
+                headers.extend(header for ii in range(data.shape[0]))
+                filenames.extend(ffile for ii in range(data.shape[0]))
                 n += data.shape[0]
             elif len(data.shape) == 2: #one image
                 all_data[n,:,:] = data
                 headers.append(header)
-                filenames.append(file)
+                filenames.append(ffile)
                 
             else:
                 raise ValueError('Fits file has unknown format!')

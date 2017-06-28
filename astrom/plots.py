@@ -1,4 +1,4 @@
-from __future__ import print_function, division
+
 import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -6,8 +6,8 @@ import numpy as np
 from scipy import signal
 from astropy.io import fits
 import pandas as pd
-import misc
-from parameters import pxscl_init,fwhm,mag,star_id,dir_out,rot_offset_guess
+from . import misc
+from .parameters import pxscl_init,fwhm,mag,star_id,dir_out,rot_offset_guess
 
 
 def make_artificial_map(source,data_objects,rot_header,verbose=True,plot=True,use_mags =True):
@@ -60,14 +60,14 @@ def make_artificial_map(source,data_objects,rot_header,verbose=True,plot=True,us
     if plot:
         if verbose:  print('Plotting the results')
         fig, (ax_source,ax_data,ax_corr) = plt.subplots(1,3)
-        ax_source.imshow(source_map[::-1,:])    
+        ax_source.imshow(np.log10(source_map[::-1,:]+np.min(source_map)))
         ax_source.plot(x_corr,source_map.shape[0]-y_corr,'ro',alpha=0.3)
         ax_source.add_patch(
             mpatches.Rectangle((x_corr-data_objects.shape[1]/2.,
                                 source_map.shape[0]-(y_corr)-data_objects.shape[0]/2.),\
                                data_objects.shape[1],data_objects.shape[0],alpha=0.3,fc='r'))
         ax_source.set_title('Catalog objects')
-        ax_data.imshow(data_objects**0.15)
+        ax_data.imshow(np.log10(data_objects))
         ax_data.set_xlim((0,data_objects.shape[1]))
         ax_data.set_ylim((0,data_objects.shape[0]))
         ax_data.set_title('Sextracted median')
@@ -84,7 +84,7 @@ def make_artificial_map(source,data_objects,rot_header,verbose=True,plot=True,us
             ax_data.plot(x_data[ii],y_data[ii],'ro',alpha= 0.3, ms= 4)
             ax_data.annotate(source[star_id][ii],xy=(x_data[ii],y_data[ii]),size=6)
     if plot:
-        fig.savefig(dir_out+'correlated_image.pdf')
+        fig.savefig(os.path.join(dir_out,'correlated_image.pdf'))
         plt.close('all')
     source['x_data_rot'] = x_data
     source['y_data_rot'] = y_data
@@ -113,15 +113,15 @@ def median_stars(data_med,source_median,ignored_med,source_cat):
     im.scatter(ignored_med['x_image'],ignored_med['y_image'],
                color='orange',marker='x',s=15,label='ignored sextr')
     im.legend(loc=3)
-    plt.savefig(dir_out+'sextracted_from_median.svg')
-    plt.close()
+    plt.savefig(os.path.join(dir_out,'sextracted_from_median.svg'))
+    plt.close('all')
 
 
 def distance_distributions(astrometry,astrometry_grouped):
     '''Make some plots showing the different distributions for the platescale/rotation'''
     print('Plotting the distributions for the different conections')
     group = astrometry.groupby([star_id+'1',star_id+'2'])
-    combinations = group.groups.keys()
+    combinations = list(group.groups.keys())
     #define the colors
     color = iter(plt.cm.rainbow(np.linspace(0,1,len(combinations))))
     fig = plt.figure()
@@ -138,8 +138,8 @@ def distance_distributions(astrometry,astrometry_grouped):
     scat.set_ylabel('Platescale')
     scat.grid(True)
     scat.set_xticklabels(combinations,rotation=20)
-    plt.savefig(dir_out+'scatter_plot.svg')
-    plt.close()
+    plt.savefig(os.path.join(dir_out,'scatter_plot.svg'))
+    plt.close('all')
     #also do some histogram plots
     for ii,comb in enumerate(combinations):
         fig  = plt.figure()
@@ -152,8 +152,9 @@ def distance_distributions(astrometry,astrometry_grouped):
         hist.grid(True)
         hist.set_title('Platescale for '+str(comb).replace("'",'').replace("(",'').replace(")",'')+
                        ' (#'+str(int(n_tg))+')')
-        plt.savefig(dir_out+'histogram_'+str(comb).replace("'",'').replace("(",'').replace(")",'').replace(",","_")+'.svg')
-        plt.close()
+        plt.savefig(os.path.join(dir_out,
+            'histogram_'+str(comb).replace("'",'').replace("(",'').replace(")",'').replace(",","_")+'.svg'))
+        plt.close('all')
     #histogramplot for all combinations
     fig  = plt.figure()
     hist_all = fig.add_subplot(111)
@@ -163,6 +164,6 @@ def distance_distributions(astrometry,astrometry_grouped):
     hist_all.set_xlabel('Platescale')
     hist_all.grid(True)
     hist_all.set_title('Platescale for all combinations '+'(#'+str(len(astrometry))+')')
-    plt.savefig(dir_out+'histogram_all.svg')
-    plt.close()
+    plt.savefig(os.path.join(dir_out,'histogram_all.svg'))
+    plt.close('all')
 
