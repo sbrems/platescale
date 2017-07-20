@@ -1,4 +1,3 @@
-
 import os
 import numpy as np
 import pandas as pd
@@ -212,6 +211,7 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
     and only return those. Do this by making all possible source-source combinations
     and find the one with the minimum distance between all.Also return the ones where
     no counterpart in catalogue was found.'''
+    
     if verbose: print('Finding the sources in the catalogue')
     
     idz_cat = np.array(source_cat.index.values)
@@ -279,6 +279,7 @@ def connect_median_sources(source_cat,median_sources,verbose=True):
     source_med_dum2 = source_med_dum2.set_index([[med2cat[x] for x in source_med_dum2.index]])
     source_med = source_med_dum1.join(source_med_dum2,how='inner')
     ignored_med = median_sources.loc[med_ignore]
+    import ipdb;ipdb.set_trace()
     return source_med,ignored_med
     
 def match_smallest_dist(list1,list2):
