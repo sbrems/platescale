@@ -6,10 +6,11 @@ from astropy.io import fits
 from subprocess import call
 import subprocess
 # from scipy.signal import convolve2d
-from .parameters import *
+from .parameters import cut_size, center_sextr
 
 
 def coordinates(data_cube, header_cube, target, fn_sextr_sgl, fn_sextr_med,
+                dir_data, dir_out, dir_temp,
                 med=False, verbose=True):
     '''###################################################
     ####get sextractor to get all the coordinates#######

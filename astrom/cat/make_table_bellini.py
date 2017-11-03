@@ -27,10 +27,10 @@ zerocoord = SkyCoord(['00:24:05.71 -72:04:52.70'],
                      unit=[u.hourangle, u.deg], frame='icrs')
 pmtable['DEC_cor'] = ((pmtable['y_M'] - pmtable['Delta_y'] - 4950.07) *
                       40 * u.mas + zerocoord.dec).to('deg')
-pmtable['RA_cor']  = (-((pmtable['x_M'] - pmtable['Delta_x'] - 4950.79) *
-                      40 * u.mas * u.deg /
-                      np.cos(np.deg2rad(pmtable['DEC_cor']))) +
-                      zerocoord.ra).to('deg')
+pmtable['RA_cor'] = (-((pmtable['x_M'] - pmtable['Delta_x'] - 4950.79) *
+                       40 * u.mas * u.deg /
+                       np.cos(np.deg2rad(pmtable['DEC_cor']))) +
+                     zerocoord.ra).to('deg')
 pmtable['RA_err'] = [0, ] * len(pmtable) * u.deg
 pmtable['DEC_err'] = [0, ] * len(pmtable) * u.deg
 pmtable['MAG_EXTRAPOL'] = 15 * (pmtable['m_F814W'] - pmtable['m_F606W']) +\

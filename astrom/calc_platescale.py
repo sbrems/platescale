@@ -8,7 +8,7 @@ from . import misc
 from .parameters import *
 
 
-def single_matches(data_cube, sex_coords, nr_ign_im, verbose=True, plot=True):
+def single_matches(data_cube, sex_coords, nr_ign_im, rot_header, verbose=True, plot=True):
     '''plotting the single matches and doing some sorting in the pd.DataFrames
     (the astrometry one)'''
 
@@ -56,7 +56,7 @@ def single_matches(data_cube, sex_coords, nr_ign_im, verbose=True, plot=True):
             entry.append(ang_meas)
             entry.append(dist_cat_deg / dist_meas)
             # note: ang_diff contains correction for initial guess.
-            ang_diff = (ang_meas - ang_cat_deg) % 360
+            ang_diff = (ang_meas - ang_cat_deg - rot_header) % 360
             if ang_diff > 180:
                 ang_diff -= 360  # make it betwenn -+180
             entry.append(ang_diff)

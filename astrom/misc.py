@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import math
-from .parameters import *
+from .parameters import pm_ra, pm_dec, mag, ra, dec, query_around_head_coord, coord_trapez, coord_47tuc_sphere, coord_47tuc_wolfgang, use_rot_header
 from . import dd_dec_converter as dc
 from shutil import copy2
 from astropy.coordinates import SkyCoord
@@ -82,7 +82,8 @@ def rotate_coords(x, y, angle, rad=False, center=[0., 0.]):
     return x, y
 
 
-def get_catalogue_data(fn_source, mjd_source, coord_head, mjd_obs=None,
+def get_catalogue_data(fn_source, mjd_source, coord_head, dir_out,
+                       mjd_obs=None,
                        verbose=True, plot=True):
     '''Reads the positions in RA and DEC from the catalogue given. if mjd
     is given it calculates
@@ -96,7 +97,6 @@ def get_catalogue_data(fn_source, mjd_source, coord_head, mjd_obs=None,
     for numeric in [mag, pm_ra, pm_dec]:  # convert to floats
         source[numeric] = pd.to_numeric(source[numeric], errors='coerce')
     rem_coord = []
-
     if len(str(source[ra][00]).strip().split(' ')) == 3:  # assuming hms/dms
         if verbose:
             print('Converting coordinates. Assuming hms/dms and mas/yr given in',
@@ -127,7 +127,6 @@ def get_catalogue_data(fn_source, mjd_source, coord_head, mjd_obs=None,
 
     source = source.drop(rem_coord)
     source.reset_index(inplace=True)
-
     # check for validity of mjd_obs and set to source date (zero pm) if none is given
     if mjd_obs != None:
         if mjd_obs <= 57300 or mjd_obs >= 65000:
@@ -139,33 +138,40 @@ def get_catalogue_data(fn_source, mjd_source, coord_head, mjd_obs=None,
     # calculate the current positions and make some plots
     ra_now = []
     dec_now = []
-    pmra_mean = np.nanmean(source[ra])
-    pmdec_mean = np.nanmean(source[dec])
-    baseline = mjd_obs - mjd_source / 365.2425
+    pmra_mean = np.nanmean(source[pm_ra])
+    pmdec_mean = np.nanmean(source[pm_dec])
+    baseline = (mjd_obs - mjd_source) / 365.2425
+    if verbose:
+        print('Found mean proper motion of ra,dec= {}, {} [mas/yr] \
+and a {} year baseline'.format(pmra_mean,
+                               pmdec_mean,
+                               baseline))
     for ii in range(len(source[ra])):
         if np.isfinite(source[pm_ra][ii]):
             ra_now.append(source[ra][ii] + baseline * source[pm_ra][ii]
-                          / (1000. * 60. * 60.) / np.cos(source[dec][ii]))
+                          / (1000. * 60. * 60.) / np.cos(np.deg2rad(source[dec][ii])))
             dec_now.append(source[dec][ii] + baseline * source[pm_dec][ii]
                            / (1000. * 60. * 60.))
             if (abs(ra_now[ii] - source[ra][ii] >= 1)) | (abs(dec_now[ii] - source[dec][ii] >= 1)):
                 raise ValueError('PM too high for target', source[star_id])
         else:
-            ra_now.append(source[ra][ii] + baseline * pmra_mean
-                          / (1000. * 60. * 60.) / np.cos(source[dec][ii]))
-            dec_now.append(source[dec][ii] + baseline * pmdec_mean
-                           / (1000. * 60. * 60.))
-    print('Corrected for proper motion. The mean values around are \
-ra/dec= {},{} [mas]'.format(pmra_mean, pmdec_mean))
+            ra_now.append(source[ra][ii] + baseline * pmra_mean /
+                          (1000. * 60. * 60.) / np.cos(np.deg2rad(source[dec][ii])))
+            dec_now.append(source[dec][ii] + baseline * pmdec_mean /
+                           (1000. * 60. * 60.))
     ra_now = np.array(ra_now)
     dec_now = np.array(dec_now)
     source['ra_now'] = ra_now
     source['dec_now'] = dec_now
-    source['ra_now_err'] = np.sqrt(source['RA_err']**2 +
-                                   (baseline * source['PMRA_err'] / (1000 * 3600) /
-                                    np.cos(source['DEC'][0]))**2)
-    source['dec_now_err'] = np.sqrt(source['DEC_err']**2 +
-                                    (baseline * source['PMDEC_err'] / (1000 * 3600))**2)
+    if 'RA_err' in source.keys():
+        source['ra_now_err'] = np.sqrt(source['RA_err']**2 +
+                                       (baseline * source['PMRA_err'] / (1000 * 3600) /
+                                        np.cos(source['DEC'][0]))**2)
+        source['dec_now_err'] = np.sqrt(source['DEC_err']**2 +
+                                        (baseline * source['PMDEC_err'] / (1000 * 3600))**2)
+    else:
+        source['ra_now_err'] = 0.
+        source['dec_now_err'] = 0.
 
 #    source['ra_now_rot'],source['dec_now_rot'] = misc.rotate_coords(ra_now,dec_now,-rot_init,\
 #                                                    center=[np.mean(ra_now),np.mean(dec_now)])
@@ -219,7 +225,7 @@ def get_headerparams(header, verbose=True):
             print('ATTENTION!!! Target <', targetname,
                   '> unknown. Please type trapezium or 47tuc .')
             targetname = str(input())
-    if 'apo_165' in header['Apodizer'].lower():
+    if 'agpm' in header['HIERARCH ESO INS OPTI1 ID'].lower():
         agpm = True
     else:
         agpm = False
@@ -232,7 +238,7 @@ def get_headerparams(header, verbose=True):
 
     if verbose:
         print('Found the following configuration:\n AGPM: {} \n target: {} \n mjd_obs: {}\n\
- rot_init: %s'.format(agpm, target, mjd_obs, rot_header))
+ rot_header: {}.'.format(agpm, target, mjd_obs, rot_header))
 
     return target, mjd_obs, agpm, coord_head, rot_header
 
