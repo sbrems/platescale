@@ -48,22 +48,25 @@ star_id = 'MAIN_ID'
 #      rot_init = -9.56
 # else:
 pxscl_init = 27.19  # mas/px
-#rot_init   = -0.6
-# set True to use header Value, e.g. arcsin(CD2_1/CD1_1), 0.0 else
+true_north_guess = -.52
+# set True to use header Value, e.g. arcsin(CD2_1/CD1_1), 0.0 else assuming
+# it is already rotated to north (according to header value)
 use_rot_header = True
-true_north_guess = -0
+mag_lim_identification = 14  # dont use stars fainter for identifying the
+# global FoV. But use fainter ones later
 # guess where the true north is (EoW) and add it to the header-value/0 if use_rot_header == False. This is a guess for the error of the instrument and only helps identifying the constellatiions.
 conv_gauss = False  # choose if the fitting shall be done by convolution and fitting a
 # gaussian to the convolution map(=True) or by upsampling (=False) upsampling
 # seems better
 # keeping the number of star images when making the reference psf. in (0,1]
 keepfr = .4
+keepfr_med = .9
 fwhm = 20  # set fwhm in px for source detection. Bigger is more robust but may lead to more errors
-search_rad = 20  # set radius where a source is still accounted as match in px
+search_rad = 8  # set radius where a source is still accounted as match in px
 sigma_outliers = 5.  # give tolerance for sigma clipping
 # ignore stars with less good connections as the fraction given (e.g. = 0 keeps all stars,even if only bad connections). Good connetction
 ignore_frac = 0.7
-max_mvmnt = 5.  # maximal assumed movement of the stars in the cc images compared to the median image. If the value is too big neighbouring stars will intefere. if too small, tracking of stars doesnt work
+max_mvmnt = 5.  # maximal assumed movement (in px) of the stars in the cc images compared to the median image. If the value is too big neighbouring stars will intefere. if too small, tracking of stars doesnt work
 # if only one star is found in single image but two in median in search_rad, use the brighter one if the contrast is higher than this given. Else ignore the source.
 min_contrast = 0.8
 # get rms (fwhm/2) for 4micron at 8.2m telescope

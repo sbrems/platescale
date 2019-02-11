@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import sigmaclip
+from astropy.stats import sigma_clip
 import itertools
 from collections import Counter
 from . import misc
@@ -94,7 +94,7 @@ def single_matches(data_cube, sex_coords, nr_ign_im, rot_header, verbose=True, p
                 im_matched.legend(
                     (scat_cat, scat_sex), ('Catalogue', 'Found position'), loc='lower left')
 
-            plt.savefig('found_sources_' + '{:03}'.format(i_im_tot) + '.svg')
+            plt.savefig('found_sources_' + '{:03}'.format(i_im_tot) + '.pdf')
             plt.close('all')
 
         i_im_tot += 1
@@ -112,8 +112,10 @@ def multiple_matches(astrometry, sigma_outliers):
     Results w/ and w/o sigma clipping are returned.
     Also the final pxscl and rotation is stored and returned in results'''
 
-    results_entries = ['pxscl_all', 'pxscl_all_err', 'rot_all', 'rot_all_err', 'pxscl_robust',
-                       'pxscl_robust_err', 'rot_robust', 'rot_robust_err', 'pxscl_rob_weighted',
+    results_entries = ['pxscl_all', 'pxscl_all_err', 'rot_all', 'rot_all_err',
+                       'pxscl_robust',
+                       'pxscl_robust_err', 'rot_robust', 'rot_robust_err',
+                       'pxscl_rob_weighted',
                        'rot_rob_weighted']
     results = pd.DataFrame(
         [len(results_entries) * [np.nan]], columns=results_entries)
@@ -125,33 +127,31 @@ def multiple_matches(astrometry, sigma_outliers):
     results['rot_all_err'] = np.std(astrometry['ang_diff'])
 
     # Do the robust calculation. I.e kick out all outliers
-    rob_idz = astrometry[(astrometry.platescale <= np.median(astrometry.platescale) +
-                          sigma_outliers * np.std(astrometry.platescale)) &
-                         (astrometry.platescale <= np.median(astrometry.platescale) +
-                          sigma_outliers * np.std(astrometry.platescale))].index
-    rob_idz_rot = astrometry[(astrometry.ang_diff <= np.median(astrometry.ang_diff) +
-                              sigma_outliers * np.std(astrometry.ang_diff)) &
-                             (astrometry.ang_diff <= np.median(astrometry.ang_diff) +
-                                 sigma_outliers * np.std(astrometry.ang_diff))].index
-    results['pxscl_robust'] = np.mean(astrometry.platescale[rob_idz])
-    results['pxscl_robust_err'] = np.std(astrometry.platescale[rob_idz])
-    results['rot_robust'] = np.mean(astrometry.ang_diff[rob_idz_rot])
-    results['rot_robust_err'] = np.std(astrometry.ang_diff[rob_idz_rot])
+    maskpxscl = sigma_clip(astrometry['platescale'], sigma=sigma_outliers).mask
+    maskrot = sigma_clip(astrometry['ang_diff'], sigma=sigma_outliers).mask
+    maskboth = np.logical_or(maskrot, maskpxscl)
+    
+    results['pxscl_robust'] = np.mean(astrometry.platescale[~maskboth])
+    results['pxscl_robust_err'] = np.std(astrometry.platescale[~maskboth])
+    results['rot_robust'] = np.mean(astrometry.ang_diff[~maskboth])
+    results['rot_robust_err'] = np.std(astrometry.ang_diff[~maskboth])
 
     # do the same weighted
     results['pxscl_rob_weighted'], results['pxscl_rob_weighted_err'] =\
-        misc.weighted_avg_and_std(astrometry.platescale[rob_idz],
-                                  weights=astrometry.weight[rob_idz])
+        misc.weighted_avg_and_std(astrometry.platescale[~maskboth],
+                                  weights=astrometry.weight[~maskboth])
     results['rot_rob_weighted'], results['rot_rob_weighted_err'] =\
-        misc.weighted_avg_and_std(astrometry.ang_diff[rob_idz_rot],
-                                  weights=astrometry.weight[rob_idz_rot])
+        misc.weighted_avg_and_std(astrometry.ang_diff[~maskboth],
+                                  weights=astrometry.weight[~maskboth])
 
     # clip the means of the platescale and then ignore the ones above and below
-
     astrometry_grouped = astrometry.groupby(
-        [star_id + '1', star_id + '2']).mean().add_suffix('_mean').reset_index()
-    astrometry_grouped_cliped = astrometry_grouped[abs(astrometry_grouped['platescale_mean'] - np.median(astrometry_grouped['platescale_mean']))
-                                                   <= (sigma_outliers * np.std(astrometry_grouped['platescale_mean']))]
+        [star_id+'1', star_id+'2']).mean().add_suffix('_mean').reset_index()
+    astrometry_grouped_cliped = astrometry_grouped[~np.logical_or(
+        sigma_clip(
+            astrometry_grouped['platescale_mean'], sigma=sigma_outliers),
+        sigma_clip(
+            astrometry_grouped['ang_diff_mean'], sigma=sigma_outliers),)]
 
     return astrometry_grouped, astrometry_grouped_cliped, results
 

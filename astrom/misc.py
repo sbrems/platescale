@@ -179,13 +179,15 @@ and a {} year baseline'.format(pmra_mean,
     if plot:
         plt.xlabel('RA [deg]')
         plt.ylabel('DEC [deg]')
-        plt.scatter(source[ra], source[dec], label='Orig. Pos.', color='blue')
-        plt.scatter(source['ra_now'], source['dec_now'],
+        plt.scatter(np.cos(source[dec][0]) * source[ra],
+                    source[dec], label='Orig. Pos.', color='blue')
+        plt.scatter(np.cos(source[dec][0]) * source['ra_now'],
+                    source['dec_now'],
                     color='red', label='With PM', alpha=0.3)
         # plt.scatter(source['ra_now_rot'],source['dec_now_rot'], color='k',
         # label='With PM and rotated',alpha = 0.3)
         plt.legend()
-        plt.savefig(os.path.join(dir_out, 'catalogue_stars.svg'))
+        plt.savefig(os.path.join(dir_out, 'catalogue_stars.pdf'))
         plt.close('all')
 
     return source
@@ -257,17 +259,21 @@ def get_catfiles(target, agpm, dir_cat, dir_temp, verbose=True):
     except NameError:
         fn_source = os.path.join(dir_cat, target + '.csv')
     try:
+        fn_sextr_conv
+    except NameError:
+        fn_sextr_conv = os.path.join(dir_cat, 'gauss_3.0_5x5.conv')
+    try:
         mjd_source
     except NameError:
         if target == 'trapezium':
             mjd_source = 55850.
         if target == '47tuc':
-            # mjd_source = 52369.5
-            mjd_source = 53808.1902  # Bellini catalogue
+            mjd_source = 52369.5 # McLaughlin06 catalo
+            # mjd_source = 53808.1902  # Bellini catalog
     if verbose:
         print('Using and copying the following parameterfiles: \n sextractor median:%s \n sextractor single: %s \n source catalog: %s \n mjd of source cat: %s' % (
             fn_sextr_med, fn_sextr_sgl, fn_source, mjd_source))
-    for fn in [fn_sextr_med, fn_sextr_sgl, fn_source]:
+    for fn in [fn_sextr_med, fn_sextr_sgl, fn_source, fn_sextr_conv]:
         copy2(fn, os.path.join(dir_temp, os.path.basename(fn)))
         fn = os.path.basename(fn)
     copy2(os.path.join(dir_cat, 'sex.param'),

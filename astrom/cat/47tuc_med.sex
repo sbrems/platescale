@@ -7,7 +7,7 @@
 CATALOG_NAME     image.sex      # name of the output catalog
 CATALOG_TYPE     ASCII_HEAD     # NONE,ASCII,ASCII_HEAD, ASCII_SKYCAT,
                                 # ASCII_VOTABLE, FITS_1.0 or FITS_LDAC
-PARAMETERS_NAME  sex.param  # name of the file containing catalog contents
+PARAMETERS_NAME  sex.param      # name of the file containing catalog contents
  
 #------------------------------- Extraction ----------------------------------
  
@@ -17,11 +17,11 @@ DETECT_MINAREA   5              # min. # of pixels above threshold
 DETECT_THRESH    10.5            # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
 ANALYSIS_THRESH  2.5            # <sigmas> or <threshold>,<ZP> in mag.arcsec-2
  
-FILTER           N              # apply filter for detection (Y or N)?
+FILTER           Y              # apply filter for detection (Y or N)?
 FILTER_NAME      gauss_3.0_5x5.conv   # name of the file containing the filter
  
 DEBLEND_NTHRESH  64             # Number of deblending sub-thresholds
-DEBLEND_MINCONT  0.001 #0.005          # Minimum contrast parameter for deblending
+DEBLEND_MINCONT  0.001 #0.005   # Minimum contrast parameter for deblending
  
 CLEAN            Y              # Clean spurious detections? (Y or N)?
 CLEAN_PARAM      1.0            # Cleaning efficiency
@@ -54,11 +54,11 @@ MAG_ZEROPOINT    0.0            # magnitude zero-point
 MAG_GAMMA        4.0            # gamma of emulsion (for photographic scans)
 GAIN             0.0            # detector gain in e-/ADU
 GAIN_KEY         GAIN           # keyword for detector gain in e-/ADU
-PIXEL_SCALE      0.03            # size of pixel in arcsec (0=use FITS WCS info)
+PIXEL_SCALE      0.027            # size of pixel in arcsec (0=use FITS WCS info)
  
 #------------------------- Star/Galaxy Separation ----------------------------
  
-SEEING_FWHM      0.91             # stellar FWHM in arcsec
+SEEING_FWHM      0.1             # stellar FWHM in arcsec
 STARNNW_NAME     default.nnw    # Neural-Network_Weight table filename
  
 #------------------------------ Background -----------------------------------

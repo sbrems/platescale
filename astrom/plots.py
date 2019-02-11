@@ -7,7 +7,8 @@ from scipy import signal
 # from astropy.io import fits
 # import pandas as pd
 from . import misc
-from .parameters import pxscl_init, fwhm, mag, star_id, true_north_guess
+from .parameters import pxscl_init, fwhm, mag, star_id,\
+    true_north_guess, mag_lim_identification
 
 
 def make_artificial_map(source, data_objects, rot_header, verbose=True,
@@ -45,7 +46,7 @@ def make_artificial_map(source, data_objects, rot_header, verbose=True,
         y_im.append(y)
         x_im_rot.append(x_rot)
         y_im_rot.append(y_rot)
-        if use_mags and np.isfinite(source[mag][ii]):
+        if use_mags and (source[mag][ii] <= mag_lim_identification):
             source_map[int(y_rot - np.floor(0.5 * gauss.shape[0])):int(y_rot + np.ceil(0.5 * gauss.shape[0])),
                        int(x_rot - np.floor(0.5 * gauss.shape[1])):int(x_rot + np.ceil(0.5 * gauss.shape[1]))] +=\
                 np.array(
@@ -62,6 +63,7 @@ def make_artificial_map(source, data_objects, rot_header, verbose=True,
     # flip in right direction to align with image and rotate it
     source_map = np.fliplr(source_map)
     source['x_im_rot'] = source_map.shape[1] - source['x_im_rot']
+    data_objects[data_objects < 0] = 0.
     corr = signal.fftconvolve(
         source_map**0.2, (data_objects[::-1, ::-1]**0.1), mode='same')
     y_corr, x_corr = np.unravel_index(np.argmax(corr), corr.shape)
@@ -110,7 +112,8 @@ def make_artificial_map(source, data_objects, rot_header, verbose=True,
     return source
 
 
-def median_stars(data_med, source_median, ignored_med, source_cat, dir_out=None):
+def median_stars(data_med, source_median, ignored_med,
+                 source_cat, dir_out=None):
     '''making some nice plot on the median image with the sources found
     and the sources from the catalogue. Also the ignored ones are plotted.
     Input: median_image (array),connected_source_list, ingored_med,
@@ -132,7 +135,7 @@ def median_stars(data_med, source_median, ignored_med, source_cat, dir_out=None)
     im.scatter(ignored_med['x_image'], ignored_med['y_image'],
                color='orange', marker='x', s=15, label='ignored sextr')
     im.legend(loc=3)
-    plt.savefig(os.path.join(dir_out, 'sextracted_from_median.svg'))
+    plt.savefig(os.path.join(dir_out, 'sextracted_from_median.pdf'))
     plt.close('all')
 
 
@@ -143,21 +146,26 @@ def distance_distributions(astrometry, astrometry_grouped, dir_out=None):
     combinations = list(group.groups.keys())
     # define the colors
     color = iter(plt.cm.rainbow(np.linspace(0, 1, len(combinations))))
-    fig = plt.figure()
-    scat = fig.add_subplot(111)
+    fig, (ax1, ax2) = plt.subplots(2, sharex=True)
     for ii, comb in enumerate(combinations):
         col = next(color)
         this_group = group.get_group(comb)
         n_tg = len(this_group)
         for i_tg in range(n_tg):
-            scat.scatter(ii + np.float(i_tg) / n_tg, this_group['platescale'].iloc[i_tg], c=col,
-                         label=str(comb))
-    scat.set_title('Platescales for the different connections')
-    scat.set_xlabel('Combination nr')
-    scat.set_ylabel('Platescale')
-    scat.grid(True)
-    scat.set_xticklabels(combinations, rotation=20)
-    plt.savefig(os.path.join(dir_out, 'scatter_plot.svg'))
+            ax1.scatter(ii + np.float(i_tg) / n_tg, this_group['platescale'].iloc[i_tg], c=col,
+                        label=str(comb))
+            ax2.scatter(ii + np.float(i_tg) / n_tg, this_group['ang_diff'].iloc[i_tg], c=col,
+                        label=str(comb))
+    ax1.set_title('Platescales for the different connections')
+    ax2.set_title('True north for the different connections')
+    ax1.set_xlabel('Combination nr')
+    ax2.set_xlabel('Combination nr')
+    ax1.set_ylabel('Platescale [mas/px]')
+    ax2.set_ylabel('True north [deg]')
+    ax1.grid(True)
+    ax2.grid(True)
+    ax1.set_xticklabels(combinations, rotation=20)
+    plt.savefig(os.path.join(dir_out, 'scatter_plot.pdf'))
     plt.close('all')
     # also do some histogram plots
     for ii, comb in enumerate(combinations):
@@ -172,7 +180,7 @@ def distance_distributions(astrometry, astrometry_grouped, dir_out=None):
         hist.set_title('Platescale for ' + str(comb).replace("'", '').replace("(", '').replace(")", '') +
                        ' (#' + str(int(n_tg)) + ')')
         plt.savefig(os.path.join(dir_out,
-                                 'histogram_' + str(comb).replace("'", '').replace("(", '').replace(")", '').replace(",", "_") + '.svg'))
+                                 'histogram_' + str(comb).replace("'", '').replace("(", '').replace(")", '').replace(",", "_") + '.pdf'))
         plt.close('all')
     # histogramplot for all combinations
     fig = plt.figure()
@@ -184,5 +192,5 @@ def distance_distributions(astrometry, astrometry_grouped, dir_out=None):
     hist_all.grid(True)
     hist_all.set_title('Platescale for all combinations ' +
                        '(#' + str(len(astrometry)) + ')')
-    plt.savefig(os.path.join(dir_out, 'histogram_all.svg'))
+    plt.savefig(os.path.join(dir_out, 'histogram_all.pdf'))
     plt.close('all')

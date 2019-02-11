@@ -82,7 +82,7 @@ def make_psf(data_cube, sex_coords, dir_temp, ign_ims=[], n_rms=2,
 
                 if conv_gauss and use_star:
                     shifts[i_star_tot, :] = find_shift(data_stars[0, :, :], cut_star, n_rms=n_rms,
-                                                       plotpath='aligned_to_psf_{:03}.svg'.format(i_star_tot))[0]
+                                                       plotpath='results/temp/aligned_to_psf_{:03}.pdf'.format(i_star_tot))[0]
                 elif use_star:
                     found_shift = find_shift_upsampling(data_stars[0, :, :], cut_star,
                                                         max_shift=max_shift, try_smaller_fov=False)[0]
@@ -192,7 +192,7 @@ border. Be cautious! Its weight is put to 0. e.g. not used in robust values.\
                                      int(np.ceil(size_x / 2.))]
                 if conv_gauss:
                     if plot:
-                        plotpath = 'psf_aligned_{:03}.svg'.format(i_star)
+                        plotpath = 'results/temp/psf_aligned_{:03}.pdf'.format(i_star)
                     else:
                         plotpath = None
                     shifts[i_star, :], errors[i_star] = find_shift(data_psf, cut_star,

@@ -11,10 +11,10 @@ import numpy as np
 # from astropy.io import fits
 from . import astrom
 from .astrom import misc, analysis, sextract,\
-    psf_fitting, calc_platescale, plots, parameters
-from .astrom.parameters import sigma_outliers, conv_gauss, keepfr, dir_cat
+    psf_fitting, calc_platescale, plots  # , parameters
+from .astrom.parameters import sigma_outliers, conv_gauss, keepfr, dir_cat,\
+    keepfr_med, true_north_guess
 
-import ipdb
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -117,7 +117,8 @@ def do(verbose=True, plot=True, delete_old=True,
                                       dir_data, dir_out, dir_temp,
                                       med=False, verbose=verbose)
     psf_med = psf_fitting.make_psf(
-        np.array([data_med]), [source_med], dir_temp, fn_out='med_cube', keepfr=0.9)
+        np.array([data_med]), [source_med], dir_temp,
+        fn_out='med_cube', keepfr=keepfr_med)
     source_med = psf_fitting.refine_fit(np.array([data_med]), psf_med, [source_med], ign_ims=[],
                                         conv_gauss=conv_gauss, verbose=verbose, plot=plot)[0]
     # excluded is excluded full images pd frame. Ignored is a list with len of n_images containing
@@ -180,8 +181,10 @@ def do(verbose=True, plot=True, delete_old=True,
         source_med['shift_error']))
     results['nr_connections_tot'] = len(np.where(np.array(astrometry['weight'])
                                                  > 0)[0])
+    results['rot_header'] = rot_header
+    results['true_north_guess'] = true_north_guess
 
-    if plot:
+    if plot and n_images > 1:
         # make some plots about the statistics
         plots.distance_distributions(astrometry, astrometry_grouped,
                                      dir_out=dir_out)

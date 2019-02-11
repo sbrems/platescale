@@ -39,7 +39,7 @@ def run(dir_def=os.getcwd(),
                  label='AGPM', marker='x')
     plt.errorbar(res_sat.mjd_obs, res_sat.rot_rob_weighted,
                  yerr=res_sat.rot_rob_weighted_err,
-                 label='saturated', marker='x')
+                 label='satPSF', marker='x')
     plt.title('True North (East of West)')
     plt.ylabel('True North [deg]')
     plt.xlabel('Modified Julian date')
@@ -52,7 +52,7 @@ def run(dir_def=os.getcwd(),
                  label='AGPM', marker='x')
     plt.errorbar(res_sat.mjd_obs, res_sat.pxscl_rob_weighted,
                  yerr=res_sat.pxscl_rob_weighted_err,
-                 label='saturated', marker='x')
+                 label='satPSF', marker='x')
     plt.title('Platescale')
     plt.ylabel('Platescale [mas/px]')
     plt.xlabel('Modified Julian date')
@@ -60,7 +60,18 @@ def run(dir_def=os.getcwd(),
     plt.savefig(os.path.join(dir_def, 'pxscl_rob_weighted.pdf'),
                 overwrite=True)
     plt.close('all')
-    
+
+    plt.scatter(res_agpm.rot_rob_weighted, res_agpm.rot_header,
+                label='AGPM')
+    plt.scatter(res_sat.rot_rob_weighted, res_sat.rot_header,
+                label='satPSF')
+    plt.title('True north vs. header rotation')
+    plt.xlabel('True north offset found [deg]')
+    plt.ylabel('Rotation given in header [deg]')
+    plt.legend()
+    plt.savefig(os.path.join(dir_def, 'header_rot_vs_true_north.pdf'),
+                overwrite=True)
+    plt.close('all')
     
     print('Done running all {} subfolders on {}. Saved to {}\
 '.format(len(dirs_to_run),
