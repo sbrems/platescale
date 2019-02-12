@@ -4,6 +4,7 @@ import os
 # import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from platescale import do as do_platescale
 
 
 # returns to dir def in the end
@@ -17,7 +18,7 @@ def run(dir_def=os.getcwd(),
     for idir, direct in enumerate(dirs_to_run):
         dir_cur = os.path.join(dir_sub, direct)
         os.chdir(dir_cur)
-        from .platescale import do as do_platescale
+
         resdum = do_platescale(dir_data2=dir_cur)
         resdum['directory'] = direct
         if idir == 0:

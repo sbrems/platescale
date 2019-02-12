@@ -9,10 +9,10 @@ import matplotlib.pyplot as plt
 # from scipy.stats import sigmaclip
 import numpy as np
 # from astropy.io import fits
-from . import astrom
-from .astrom import misc, analysis, sextract,\
+import astrom
+from astrom import misc, analysis, sextract,\
     psf_fitting, calc_platescale, plots  # , parameters
-from .astrom.parameters import sigma_outliers, conv_gauss, keepfr, dir_cat,\
+from astrom.parameters import sigma_outliers, conv_gauss, keepfr, dir_cat,\
     keepfr_med, true_north_guess
 
 
