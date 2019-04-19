@@ -94,21 +94,32 @@ def coordinates(data_cube, header_cube, target, fn_sextr_sgl, fn_sextr_med,
         sex_coords = pd.read_csv(os.path.join(dir_temp, target + '_med.sex'),
                                  header=None,
                                  delimiter=r'\s+', comment='#',
-                                 names=('mag_auto', 'x_image', 'y_image',
-                                        'rms_A_image', 'rms_B_image'),
+                                 names=('number', 'mag_auto', 'x_peak_image', 'y_peak_image',
+                                        'x_image', 'y_image', 'fwhm', 'class_star'),
                                  dtype={'x_image': np.float64,
                                         'y_image': np.float64},
                                  skip_blank_lines=True)
-        # subtract 1 as sextractor starts at (1,1) and not (0,0)
+        # subtract 1 as sextractor starts at (1,1) and not (0,0). convert deg to arcsec
+        sex_coords['fwhm'] *= 3600
         sex_coords['x_image'] -= 1
         sex_coords['y_image'] -= 1
+        # remove sources with the wrong FWHM
+        sex_coords = sex_coords[np.logical_and(sex_coords['fwhm'] >= 0.08,
+                                               sex_coords['fwhm'] <= .25)]
         # overwrite the just created fits file with
         sex_coords = sex_coords.sort_values(
             by='mag_auto').reset_index(drop=True)
+        # make a peakmap without the ignored sources
+        peakmap = np.full(all_objects.shape, 0)
+        for x, y, z in zip(sex_coords['x_image'], sex_coords['y_image'],
+                           sex_coords['mag_auto']):
+            x, y = np.int(np.round(x)), np.int(np.round(y))
+            peakmap[y, x] = 10**(-z)
+        # overwrite the checkimage
         fits.writeto(os.path.join(dir_out, target + '_objects_med.fits'),
-                     all_objects, header_cube[0], output_verify='ignore')
+                     peakmap, header_cube[0], output_verify='ignore')
     os.chdir(dir_data)
     if med:
-        return sex_coords, all_objects
+        return sex_coords, peakmap
     else:
         return sex_coords

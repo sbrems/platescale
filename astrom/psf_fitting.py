@@ -206,7 +206,7 @@ border. Be cautious! Its weight is put to 0. e.g. not used in robust values.\
                     shifts[i_star, 0]
                 sex_coords[i_image]['y_image'][i_star] = y_old - \
                     shifts[i_star, 1]
-                sex_coords[i_image]['shift_error'] = errors
+        sex_coords[i_image]['shift_error'] = errors
             # if verbose: print('Shifts found in image nr',i_image,':\n',shifts)
 
     return sex_coords
@@ -227,7 +227,7 @@ def find_shift(ref_frame, shift_frame, plotpath=None, n_rms=2, convolve=True):
     # use max_values as initial guesses and
     ymax, xmax = np.unravel_index(np.nanargmax(conv), conv.shape)
     initial_guess = (np.nanmax(conv), ymax, xmax,
-                     x / n_rms, y / n_rms, 0, 0)
+                     x / n_rms/2., y / n_rms/2., 0, np.max((0., np.nanmin(conv))))
     with warnings.catch_warnings():
         warnings.simplefilter('error', OptimizeWarning)
         try:
@@ -259,13 +259,12 @@ def find_shift(ref_frame, shift_frame, plotpath=None, n_rms=2, convolve=True):
                 if (not 0 < popt[1] < x) or (not 0 < popt[2] < y):
                     raise ValueError(
                         'Also smaller field didnt work.')
-
             except:
                 print('Trying upsampling')
                 y, x = ref_frame.shape
-                popt[1:3], perr = skimage.feature.register_translation(ref_frame, shift_frame,
+                popt, perr = skimage.feature.register_translation(ref_frame, shift_frame,
                                                                        upsample_factor=20, space='real')[0:2]
-                res = (popt[1] - x / 2., popt[2] - y / 2.)
+                res = (popt[1] - x / 2., popt[0] - y / 2.)
                 plotpath = None
 
     # make some plots

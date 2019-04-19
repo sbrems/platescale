@@ -15,7 +15,7 @@ def make_artificial_map(source, data_objects, rot_header, verbose=True,
                         plot=True, use_mags=True, dir_out=None):
     '''creates an artificial map with the sources in it'''
     print('Matching the sources...')
-    rot_init = rot_header + true_north_guess
+    rot_init = rot_header - true_north_guess
     offset = 10 * fwhm
     degtopix = 60 * 60 * 1000 / pxscl_init
     ra_min = min(source['ra_now'])
@@ -58,15 +58,25 @@ def make_artificial_map(source, data_objects, rot_header, verbose=True,
                        int(x_rot - np.floor(0.5 * gauss.shape[1])):
                        int(x_rot + np.ceil(0.5 * gauss.shape[1]))] +=\
                 gauss * 1
+    source_map = source_map**0.1
     source['x_im_rot'] = x_im_rot
     source['y_im_rot'] = y_im_rot
     # flip in right direction to align with image and rotate it
     source_map = np.fliplr(source_map)
     source['x_im_rot'] = source_map.shape[1] - source['x_im_rot']
     data_objects[data_objects < 0] = 0.
+
+    plt.imshow(source_map, origin='lower')
+    plt.savefig(os.path.join(dir_out, 'artificial_source_map.pdf'))
+    plt.close()
+    
     corr = signal.fftconvolve(
-        source_map**0.2, (data_objects[::-1, ::-1]**0.1), mode='same')
-    y_corr, x_corr = np.unravel_index(np.argmax(corr), corr.shape)
+        source_map, (data_objects[::-1, ::-1]**0.1), mode='same')
+    cut_edges = 100 # dont take points too close to corner, in px
+    y_corr, x_corr = np.array(np.unravel_index(np.argmax(corr[cut_edges:-cut_edges,
+                                                     cut_edges:-cut_edges]),
+                                      corr[cut_edges:-cut_edges,
+                                           cut_edges:-cut_edges].shape)) + cut_edges
     # plot the results
     if verbose:
         print('Plotting the results')

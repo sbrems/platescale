@@ -56,7 +56,7 @@ def single_matches(data_cube, sex_coords, nr_ign_im, rot_header, verbose=True, p
             entry.append(ang_meas)
             entry.append(dist_cat_deg / dist_meas)
             # note: ang_diff contains correction for initial guess.
-            ang_diff = (ang_meas - ang_cat_deg - rot_header) % 360
+            ang_diff = -(ang_meas - ang_cat_deg - rot_header) % 360
             if ang_diff > 180:
                 ang_diff -= 360  # make it betwenn -+180
             entry.append(ang_diff)
@@ -119,22 +119,26 @@ def multiple_matches(astrometry, sigma_outliers):
                        'rot_rob_weighted']
     results = pd.DataFrame(
         [len(results_entries) * [np.nan]], columns=results_entries)
-
-    # calculate the results
+    # calculate the results. Divide by the number of indepentent measurements, which is the number of stars,
+    # and in the case of clipping the formula below
+    n_meas = len(astrometry)
+    n_meas_independent = (1+np.sqrt(1+8*n_meas))/2.
     results['pxscl_all'] = np.mean(astrometry['platescale'])
-    results['pxscl_all_err'] = np.std(astrometry['platescale'])
+    results['pxscl_all_err'] = np.std(astrometry['platescale'])/np.sqrt(n_meas_independent)
     results['rot_all'] = np.mean(astrometry['ang_diff'])
-    results['rot_all_err'] = np.std(astrometry['ang_diff'])
+    results['rot_all_err'] = np.std(astrometry['ang_diff'])/np.sqrt(n_meas_independent)
 
     # Do the robust calculation. I.e kick out all outliers
     maskpxscl = sigma_clip(astrometry['platescale'], sigma=sigma_outliers).mask
     maskrot = sigma_clip(astrometry['ang_diff'], sigma=sigma_outliers).mask
     maskboth = np.logical_or(maskrot, maskpxscl)
-    
+
+    n_meas_rob = np.sum(~maskboth)
+    n_meas_rob_independent = (1+np.sqrt(1+8*n_meas))/2.
     results['pxscl_robust'] = np.mean(astrometry.platescale[~maskboth])
-    results['pxscl_robust_err'] = np.std(astrometry.platescale[~maskboth])
+    results['pxscl_robust_err'] = np.std(astrometry.platescale[~maskboth])/np.sqrt(n_meas_rob_independent)
     results['rot_robust'] = np.mean(astrometry.ang_diff[~maskboth])
-    results['rot_robust_err'] = np.std(astrometry.ang_diff[~maskboth])
+    results['rot_robust_err'] = np.std(astrometry.ang_diff[~maskboth])/np.sqrt(n_meas_rob_independent)
 
     # do the same weighted
     results['pxscl_rob_weighted'], results['pxscl_rob_weighted_err'] =\
@@ -143,6 +147,8 @@ def multiple_matches(astrometry, sigma_outliers):
     results['rot_rob_weighted'], results['rot_rob_weighted_err'] =\
         misc.weighted_avg_and_std(astrometry.ang_diff[~maskboth],
                                   weights=astrometry.weight[~maskboth])
+    results['pxscl_rob_weighted_err'] /= np.sqrt(n_meas_rob_independent)
+    results['rot_rob_weighted_err'] /= np.sqrt(n_meas_rob_independent)
 
     # clip the means of the platescale and then ignore the ones above and below
     astrometry_grouped = astrometry.groupby(

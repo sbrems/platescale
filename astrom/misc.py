@@ -83,12 +83,16 @@ def rotate_coords(x, y, angle, rad=False, center=[0., 0.]):
 
 
 def get_catalogue_data(fn_source, mjd_source, coord_head, dir_out,
+                       imsize=0.,  # in arcsec
                        mjd_obs=None,
                        verbose=True, plot=True):
     '''Reads the positions in RA and DEC from the catalogue given. if mjd
     is given it calculates
-    the current position based on the pm found in that catalogue'''
+    the current position based on the pm found in that catalogue.
+    Imsize is the size of the image in arcsec. Needed to make the 
+    cut radius around it'''
 
+    query_region = query_around_head_coord + imsize
     # read in the coords and convert them
     if verbose:
         print('Converting coordinates. Assuming hmsdms and mas/yr given in',
@@ -118,8 +122,8 @@ def get_catalogue_data(fn_source, mjd_source, coord_head, dir_out,
         else:
             raise ValueError(
                 'Unknown coordinate format. Use hmsdms with space separation or deg')
-
-        if coord_head.separation(coord_dum).arcsec <= query_around_head_coord:
+        
+        if coord_head.separation(coord_dum).arcsec <= query_region:
             source[ra][ii] = coord_dum.ra.deg
             source[dec][ii] = coord_dum.dec.deg
         else:
@@ -217,11 +221,11 @@ def get_headerparams(header, verbose=True):
         header['CRVAL1'], header['CRVAL2'], frame='icrs', unit='deg')
     while target == None:
         if ('trapezium' in targetname) \
-           or (coord_head.separation(coord_trapez).arcsec < query_around_head_coord):
+           or (coord_head.separation(coord_trapez).arcsec < 50):
             target = 'trapezium'
         elif ('47tuc' in targetname) \
-                or (coord_head.separation(coord_47tuc_sphere).arcsec < query_around_head_coord)\
-                or (coord_head.separation(coord_47tuc_wolfgang).arcsec < query_around_head_coord):
+                or (coord_head.separation(coord_47tuc_sphere).arcsec < 50)\
+                or (coord_head.separation(coord_47tuc_wolfgang).arcsec < 50):
             target = '47tuc'
         else:
             print('ATTENTION!!! Target <', targetname,
@@ -235,6 +239,8 @@ def get_headerparams(header, verbose=True):
 
     if use_rot_header:
         rot_header = np.rad2deg(np.arcsin(header['CD2_1'] / header['CD1_1']))
+        if not np.isfinite(rot_header):
+            rot_header = 0.0
     else:
         rot_header = 0.0
 
@@ -278,4 +284,6 @@ def get_catfiles(target, agpm, dir_cat, dir_temp, verbose=True):
         fn = os.path.basename(fn)
     copy2(os.path.join(dir_cat, 'sex.param'),
           os.path.join(dir_temp, 'sex.param'))
+    copy2(os.path.join(dir_cat, 'default.nnw'),
+          os.path.join(dir_temp, 'default.nnw'))
     return mjd_source, fn_sextr_med, fn_sextr_sgl, fn_source

@@ -1,4 +1,4 @@
-lNUMBER                   Running object number                                    
+NUMBER                   Running object number                                    
 #EXT_NUMBER               FITS extension number                                    
 #FLUX_ISO                 Isophotal flux                                            [count]
 #FLUXERR_ISO              RMS error for isophotal flux                              [count]
@@ -190,14 +190,14 @@ Y_IMAGE                  Object position along y                                
 #NLOWWEIGHT_ISO           Nb of pixels with low weight over the iso. profile       
 #NLOWDWEIGHT_ISO          Nb of pixels with low det. weight over the iso. profile  
 #FWHM_IMAGE               FWHM assuming a gaussian core                             [pixel]
-#FWHM_WORLD               FWHM assuming a gaussian core                             [deg]
+FWHM_WORLD               FWHM assuming a gaussian core                             [deg]
 #ELONGATION               A_IMAGE/B_IMAGE                                          
 #ELLIPTICITY              1 - B_IMAGE/A_IMAGE                                      
 #POLAR_IMAGE              (A_IMAGE^2 - B_IMAGE^2)/(A_IMAGE^2 + B_IMAGE^2)          
 #POLAR_WORLD              (A_WORLD^2 - B_WORLD^2)/(A_WORLD^2 + B_WORLD^2)          
 #POLARWIN_IMAGE           (AWIN^2 - BWIN^2)/(AWIN^2 + BWIN^2)                      
 #POLARWIN_WORLD           (AWIN^2 - BWIN^2)/(AWIN^2 + BWIN^2)                      
-#CLASS_STAR               S/G classifier output                                    
+CLASS_STAR               S/G classifier output                                    
 #VIGNET                   Pixel data around detection                               [count]
 #VIGNET_SHIFT             Pixel data around detection, corrected for shift          [count]
 #VECTOR_ASSOC             ASSOCiated parameter vector                              

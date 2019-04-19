@@ -23,7 +23,7 @@ dir_cat = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'cat')
 coord_trapez = SkyCoord('05h35m15.84s', '-05d23m22.60s', frame='icrs')
 coord_47tuc_sphere = SkyCoord('00h23m58.12s', '-72d05m30.19s', frame='icrs')
 coord_47tuc_wolfgang = SkyCoord('00h24m06.30s', '-72d04m59.60s', frame='icrs')
-query_around_head_coord = 30.  # in arcsec how far stars in catalog may be away from header position. inf for whole catalog
+query_around_head_coord = 10.  # in arcsec how far stars in catalog may be away from header position+fov. inf for whole catalog
 # parameters of source coordinate file. Comment out for standard nomenclature dependent on target
 # give julian date of the coordinates
 # mjd_source = 55850  #Close12: 55850
@@ -48,7 +48,7 @@ star_id = 'MAIN_ID'
 #      rot_init = -9.56
 # else:
 pxscl_init = 27.19  # mas/px
-true_north_guess = -.52
+true_north_guess = .6
 # set True to use header Value, e.g. arcsin(CD2_1/CD1_1), 0.0 else assuming
 # it is already rotated to north (according to header value)
 use_rot_header = True

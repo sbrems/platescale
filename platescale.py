@@ -13,7 +13,7 @@ import astrom
 from astrom import misc, analysis, sextract,\
     psf_fitting, calc_platescale, plots  # , parameters
 from astrom.parameters import sigma_outliers, conv_gauss, keepfr, dir_cat,\
-    keepfr_med, true_north_guess
+    keepfr_med, true_north_guess, pxscl_init
 
 
 pd.options.mode.chained_assignment = None  # default='warn'
@@ -84,8 +84,10 @@ def do(verbose=True, plot=True, delete_old=True,
     if header_cube[-1]['MJD-OBS'] - mjd_obs > 1:
         raise ValueError('Observations not from the same day:',
                          mjd_obs, header_cube[-1]['MJD-OBS'])
+
     source_cat = misc.get_catalogue_data(fn_source, mjd_source, coord_head,
                                          dir_out,
+                                         imsize=np.max(data_med.shape)*pxscl_init/1000,
                                          mjd_obs=mjd_obs,
                                          verbose=verbose, plot=plot)
 
@@ -101,10 +103,13 @@ def do(verbose=True, plot=True, delete_old=True,
                                            use_mags=use_mags,
                                            dir_out=dir_out)
 
+    
     # Only use the sources found in the median image further. Find them
     source_med, ignored_med = analysis.connect_median_sources(source_cat,
                                                               median_sources,
                                                               verbose=verbose)
+    if len(source_med) <= 1:
+        raise TooFewStarsFoundError
     # plot the median image with all the sources found and connected
     if plot:
         plots.median_stars(data_med, source_med, ignored_med, source_cat,
@@ -159,7 +164,7 @@ def do(verbose=True, plot=True, delete_old=True,
     #########################################################
     #do the statistics. e.g. measure all the distances#######
     #########################################################
-
+ 
     os.chdir(dir_out)
     # in astrometry the single distances/angles between all possible combinations are saved.
     # main_id1 is the one coming first in the alphabet
@@ -167,12 +172,15 @@ def do(verbose=True, plot=True, delete_old=True,
     astrometry = calc_platescale.single_matches(data_cube, sex_coords, nr_ign_im,
                                                 rot_header,
                                                 verbose=verbose, plot=plot)
+    # if only stars with weight 0 found (e.g. they were too close to the border), ignore them
+    if np.max(astrometry['weight']) <= 0.:
+        raise TooFewStarsFoundError
     ################################################################
     #now combine all measurements that have the same start and end##
     ################################################################
 
     astrometry_grouped, astrometry_grouped_cliped, results = calc_platescale.multiple_matches(
-        astrometry, sigma_outliers)
+        astrometry, sigma_outliers, )
     # add some parameters to be saved
     results['target'] = target
     results['agpm'] = agpm
@@ -237,3 +245,8 @@ def do(verbose=True, plot=True, delete_old=True,
     print('Finished platescale.py successfully!')
 
     return results
+
+
+class TooFewStarsFoundError(Exception):
+    '''Exception if too few stars were found in the image'''
+    pass
